@@ -204,6 +204,7 @@ var
         this.input = function(event) {
             if (that.output.gameState == "intro") {
                 if(event.keyCode == 32) {
+                    room.send({start: true});
                     that.output.gameState = "partita";
                 }
             } else if (that.output.gameState == "partita") {
@@ -312,34 +313,41 @@ var
             context.lineTo(offsetX + 5 + 11 * blockSize, offsetY + blockSize * 24 + 10);
             context.stroke();
 
-            for (var i=0; i<24; i++){
-                for (var j=1; j<11; j++){
-                    var x = j * blockSize, y = i * blockSize;
+            if (partita.schermata) {
 
-                    if (partita.schermata[i][j] == 0) {
-                        context.fillStyle = "white";
-                        //context.fillRect(offsetX + x, offsetY + y, blockSize - 1, blockSize - 1);
-                    }
 
-                    if (partita.schermata[i][j] > 0) {
-                        this.setTetraminoFillStyle(partita.schermata[i][j]);
-                        if (partita.schermata[i][j] == 255) { context.fillStyle = "#FF0000"; }
-                        context.fillRect(offsetX + x, offsetY + y, blockSize - 1, blockSize - 1);
-                    }
-                }
-            }
+                for (var i = 0; i < 24; i++) {
+                    for (var j = 1; j < 11; j++) {
+                        var x = j * blockSize, y = i * blockSize;
 
-            // Draw current
-            for (var i=0; i<=3; i++) {
-                for (var j=0; j<=3; j++) {
-                    if (tetramini[partita.tetramino.corrente][partita.tetramino.rotazione][i][j] == 1) {
-                        var
-                            x = offsetX + ((partita.tetramino.x + j) * blockSize),
-                            y = offsetY + ((partita.tetramino.y + i) * blockSize);
-                        this.setTetraminoFillStyle(partita.tetramino.corrente + 1);
-                        context.fillRect(x,  y, blockSize - 1, blockSize - 1);
+                        if (partita.schermata[i][j] == 0) {
+                            context.fillStyle = "white";
+                            //context.fillRect(offsetX + x, offsetY + y, blockSize - 1, blockSize - 1);
+                        }
+
+                        if (partita.schermata[i][j] > 0) {
+                            this.setTetraminoFillStyle(partita.schermata[i][j]);
+                            if (partita.schermata[i][j] == 255) {
+                                context.fillStyle = "#FF0000";
+                            }
+                            context.fillRect(offsetX + x, offsetY + y, blockSize - 1, blockSize - 1);
+                        }
                     }
                 }
+
+                // Draw current
+                for (var i = 0; i <= 3; i++) {
+                    for (var j = 0; j <= 3; j++) {
+                        if (tetramini[partita.tetramino.corrente][partita.tetramino.rotazione][i][j] == 1) {
+                            var
+                                x = offsetX + ((partita.tetramino.x + j) * blockSize),
+                                y = offsetY + ((partita.tetramino.y + i) * blockSize);
+                            this.setTetraminoFillStyle(partita.tetramino.corrente + 1);
+                            context.fillRect(x, y, blockSize - 1, blockSize - 1);
+                        }
+                    }
+                }
+
             }
 
         };
@@ -362,13 +370,13 @@ room.onJoin.add(function () {
 });
 
 room.onStateChange.addOnce(function(state) {
-    system.output.partita = state;
+    //system.output.partita = state;
     console.log("initial room state:", state);
 });
 
 // new room state
 room.onStateChange.add(function(state) {
-    system.output.partita = state;
+    //system.output.partita = state;
     // this signal is triggered on each patch
     console.log("state: ", state);
 });
@@ -379,10 +387,43 @@ room.onMessage.add(function(data) {
     if (data.state.gameOver){ system.output.gameState = "gameover"; }
 
     if (data.state){
-        system.output.partita = data.state;
+        //system.output.partita = data.state;
     }
 
 });
+
+
+room.listen("players/:uid", function(change)  {
+    //alert();
+    console.log(change.operation); // => "replace" (can be "add", "remove" or "replace")
+    console.log(change.path["uid"]); // => "f98h3f"
+    console.log(change.value); // => 1
+    if (change.operation == "add"){
+        system.output.partita = change.value;
+    }
+});
+room.listen("players/:uid/gameOver", function(change)  {
+    if (change.operation == "replace"){
+        room.send({stop: true});
+        system.output.gameState = "gameover";
+    }
+});
+room.listen("players/:uid/schermata/:i/:j", function(change)  {
+    if (change.operation == "replace"){
+        system.output.partita.schermata[change.path["i"]][change.path["j"]] = change.value;
+    }
+});
+room.listen("players/:uid:/tetramino/:t", function(change)  {
+    //alert();
+    console.log(change.operation); // => "replace" (can be "add", "remove" or "replace")
+    console.log(change.path["t"]); // => "f98h3f"
+    console.log(change.value); // => 1
+    if (change.operation == "replace"){
+
+        system.output.partita.tetramino[change.path["t"]] = change.value;
+    }
+});
+
 
 // send message to room
 // room.send({ message: input.value });
