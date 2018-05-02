@@ -354,56 +354,35 @@ var
         this.setPartita = function(partita){
             this.partita = partita;
         };
-    };
+    },
+    system = new System(),
+    host = window.document.location.host.replace(/:.*/, ''),
+    client = new Colyseus.Client(location.protocol.replace("http", "ws") + host + (location.port ? ':'+location.port : '')),
+    room = client.join("tetris");
 
-var system = new System();
 document.addEventListener('keydown', system.input); // Motore Input
 setInterval(function(){ system.output.processFrame(); }, 40);	// Motore grafico
 
-var host = window.document.location.host.replace(/:.*/, '');
 
-var client = new Colyseus.Client(location.protocol.replace("http", "ws") + host + (location.port ? ':'+location.port : ''));
-var room = client.join("tetris");
 room.onJoin.add(function () {
     console.log("joined");
 
 });
 
-room.onStateChange.addOnce(function(state) {
-    //system.output.partita = state;
-    console.log("initial room state:", state);
-});
-
+room.onStateChange.addOnce(function(state) { });
 // new room state
-room.onStateChange.add(function(state) {
-    //system.output.partita = state;
-    // this signal is triggered on each patch
-    console.log("state: ", state);
-});
-
+room.onStateChange.add(function(state) { });
 // listen to patches coming from the server
-room.onMessage.add(function(data) {
-    console.log(data.state.gameOver);
-    if (data.state.gameOver){ system.output.gameState = "gameover"; }
-
-    if (data.state){
-        //system.output.partita = data.state;
-    }
-
-});
+room.onMessage.add(function(data) { });
 
 
 room.listen("players/:uid", function(change)  {
-    //alert();
-    console.log(change.operation); // => "replace" (can be "add", "remove" or "replace")
-    console.log(change.path["uid"]); // => "f98h3f"
-    console.log(change.value); // => 1
     if (change.operation == "add"){
         system.output.partita = change.value;
     }
 });
 room.listen("players/:uid/gameOver", function(change)  {
-    if (change.operation == "replace"){
+    if ((change.operation == "replace") && (change.value == true)){
         room.send({stop: true});
         system.output.gameState = "gameover";
     }
@@ -414,16 +393,7 @@ room.listen("players/:uid/schermata/:i/:j", function(change)  {
     }
 });
 room.listen("players/:uid:/tetramino/:t", function(change)  {
-    //alert();
-    console.log(change.operation); // => "replace" (can be "add", "remove" or "replace")
-    console.log(change.path["t"]); // => "f98h3f"
-    console.log(change.value); // => 1
     if (change.operation == "replace"){
-
         system.output.partita.tetramino[change.path["t"]] = change.value;
     }
 });
-
-
-// send message to room
-// room.send({ message: input.value });
