@@ -5,7 +5,7 @@
   "main": "index.ts",
   "scripts": {
     "start": "nodemon --watch '**/*.ts' --exec ts-node index.ts",
-    "bundle-colyseus-client": "browserify ./node_modules/colyseus.js/lib/index.js -s Colyseus -o static/js/colyseus.js"
+    "bundle-colyseus-client": ". ./node_modules/colyseus.js/lib/index.js -s Colyseus -o static/js/colyseus.js"
   },
   "author": "Alessandro Balbo",
   "license": "MIT",

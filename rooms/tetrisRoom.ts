@@ -3,7 +3,7 @@ import {TetrisState} from "./tetrisState";
 
 export class TetrisRoom extends Room {
 
-    maxClients = 4;
+    maxClients = 2;
     i = 0;
 
     speedDivisor: number;
@@ -11,8 +11,8 @@ export class TetrisRoom extends Room {
 
     onInit (options) {
         this.setState(new TetrisState());
-        this.setPatchRate(50);
-        this.setSimulationInterval(() => this.update());
+        //this.setPatchRate(50);
+        this.setSimulationInterval(() => this.update(), 20);
         this.speedDivisor = 50;
     }
 
@@ -33,10 +33,10 @@ export class TetrisRoom extends Room {
             console.log("stop");
         }
         if (data.dir){
-            if (data.dir == "left"){ this.state.players[client.sesssionId].moveLeft(); }
-            if (data.dir == "right"){ this.state.players[client.sesssionId].moveRight(); }
-            if (data.dir == "down"){ this.state.players[client.sesssionId].moveDown(); }
-            if (data.dir == "rotate"){ this.state.players[client.sesssionId].rotate(); }
+            if (data.dir == "left"){ this.state.moveLeft(client); }
+            if (data.dir == "right"){ this.state.moveRight(client); }
+            if (data.dir == "down"){ this.state.moveDown(client); }
+            if (data.dir == "rotate"){ this.state.rotate(client); }
         }
     }
 
