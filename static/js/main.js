@@ -194,52 +194,38 @@ const
         ],
     ];
 
-
-
-let app = new PIXI.Application(800, 600, {backgroundColor : 0x1099bb});
-document.body.appendChild(app.view);
-
-
-
-
-
-var bunny = PIXI.Sprite.fromImage('img/star.png')
-
-// center the sprite's anchor point
-bunny.anchor.set(0.5);
-
-// move the sprite to the center of the screen
-bunny.x = app.screen.width / 2;
-bunny.y = app.screen.height / 2;
-
-app.stage.addChild(bunny);
-
-
-
-
-
-
-
 let
+    game = {},
+    app = new PIXI.Application(800, 600, {backgroundColor : 0x000000}),
     left = keyboard(37),
     up = keyboard(38),
     right = keyboard(39),
     down = keyboard(40),
     space = keyboard(32);
 
-left.press = () => { console.log('left press'); };
+document.body.appendChild(app.view);
+
+left.press = () => { if (state == play){ room.send({ dir: "left"}); } };
 left.release = () => { console.log('left release');  };
 
 up.press = () => { console.log('up press'); };
 up.release = () => { };
 
-right.press = () => { console.log('right press'); };
+right.press = () => { if (state == play){ room.send({ dir: "right"}); } };
 right.release = () => { };
 
-down.press = () => { console.log('down press'); };
+down.press = () => { if (state == play){ room.send({ dir: "down"}); } };
 down.release = () => { };
 
-space.press = () => { console.log('space press'); };
+space.press = () => {
+    if (state == play){
+        room.send({dir: "rotate"});
+    };
+    if (state == intro){
+        room.send({start: true});
+        state = play;
+    }
+}
 space.release = () => { };
 
 
@@ -280,27 +266,114 @@ function keyboard(keyCode) {
     return key;
 }
 
+function setTetraminoFillStyle(i) {
+    if (i == 1) { return 0xb3ffff; }
+    if (i == 2) { return 0x0073e6; }
+    if (i == 3) { return 0xff9933; }
+    if (i == 4) { return 0xffff00; }
+    if (i == 5) { return 0x66ff33; }
+    if (i == 6) { return 0xff66ff; }
+    if (i == 7) { return 0xcc0000; }
+};
+
+var style = new PIXI.TextStyle({
+    fontFamily: 'Arial',
+    fontSize: 144,
+    fontStyle: 'italic',
+    fontWeight: 'bold',
+    fill: ['#ffffff', '#00ff99'], // gradient
+    stroke: '#4a1850',
+    strokeThickness: 5,
+    dropShadow: true,
+    dropShadowColor: '#000000',
+    dropShadowBlur: 4,
+    dropShadowAngle: Math.PI / 6,
+    dropShadowDistance: 6,
+    wordWrap: true,
+    wordWrapWidth: 440
+});
+var basicText = new PIXI.Text('tetriScript', style);
+basicText.x = 50;
+basicText.y = 240;
+
+app.stage.addChild(basicText);
+basicText.visible = false;
 
 
 
-
-
-
-
-state = play;
-// Listen for animate update
+state = intro;
 app.ticker.add(delta => gameLoop(delta));
 function gameLoop(delta) {
     state(delta);
+}
+let scene, newScene;
+function play(delta) {
+    basicText.visible = false;
 
+    newScene = drawGameScene();
+    app.stage.removeChild(scene);
+    scene = newScene;
+    app.stage.addChild(scene);
 
 }
+function intro(delta){
+    basicText.visible = true;
+}
+function gameover(delta){}
 
-function play(delta) {
-    // just for fun, let's rotate mr rabbit a little
-    // delta is 1 if running at 100% performance
-    // creates frame-independent transformation
-    bunny.rotation += 0.1 * delta;
+function drawGameScene(){
+    var graphics = new PIXI.Graphics();
+
+
+    // this.clearScreen();
+
+    graphics.beginFill(0xffffff);
+    graphics.lineStyle(2, 0xffffff, 1);
+
+    graphics.moveTo(offsetX + 13, offsetY - 5);
+    graphics.lineTo(offsetX + 13, offsetY + blockSize * 24 + 10);
+    graphics.moveTo(offsetX + 5 , offsetY + blockSize * 24 + 5);
+    graphics.lineTo(offsetX + 10 + 11 * blockSize, offsetY + blockSize * 24 + 5);
+    graphics.moveTo(offsetX + 5 + 11 * blockSize, offsetY - 5);
+    graphics.lineTo(offsetX + 5 + 11 * blockSize, offsetY + blockSize * 24 + 10);
+
+    graphics.lineStyle(0, 0x000000, 0);
+
+    if (game.partita && game.partita.schermata) {
+        for (var i = 0; i < 24; i++) {
+            for (var j = 1; j < 11; j++) {
+                var x = j * blockSize, y = i * blockSize;
+                if (game.partita.schermata[i][j] == 0) {
+                    // context.fillStyle = "white";
+                    //context.fillRect(offsetX + x, offsetY + y, blockSize - 1, blockSize - 1);
+                }
+                if (game.partita.schermata[i][j] > 0) {
+                    let c = setTetraminoFillStyle(game.partita.schermata[i][j]);
+                    if (game.partita.schermata[i][j] == 255) {
+                        c = 0xFF0000;
+                    }
+                    graphics.beginFill(c);
+                    graphics.drawRect(offsetX + x, offsetY + y, blockSize - 1, blockSize - 1);
+                }
+            }
+        }
+        // Draw current
+        for (var i = 0; i <= 3; i++) {
+            for (var j = 0; j <= 3; j++) {
+                if (tetramini[game.partita.tetramino.corrente][game.partita.tetramino.rotazione][i][j] == 1) {
+                    const
+                        x = offsetX + ((game.partita.tetramino.x + j) * blockSize),
+                        y = offsetY + ((game.partita.tetramino.y + i) * blockSize),
+                        c  = setTetraminoFillStyle(game.partita.tetramino.corrente + 1);
+                    graphics.beginFill(c);
+                    graphics.drawRect(x, y, blockSize - 1, blockSize - 1);
+                }
+            }
+        }
+    }
+    graphics.endFill();
+
+    return graphics;
 }
 
 
@@ -324,23 +397,25 @@ room.onMessage.add((data) => { });
 
 room.listen("players/:uid", (change) => {
     if (change.operation == "add"){
-        // system.output.partita = change.value;
+        game.partita = change.value;
     }
 });
+
 room.listen("players/:uid/gameOver", (change) => {
     if ((change.operation == "replace") && (change.value == true)){
         room.send({stop: true});
-        // system.output.gameState = "gameover";
+        game.gameState = "gameover";
     }
 });
 
 room.listen("players/:uid/schermata/:i/:j", (change) => {
     if (change.operation == "replace"){
-        // system.output.partita.schermata[change.path["i"]][change.path["j"]] = change.value;
+        game.partita.schermata[change.path["i"]][change.path["j"]] = change.value;
     }
 });
+
 room.listen("players/:uid:/tetramino/:t", function(change)  {
     if (change.operation == "replace"){
-        // system.output.partita.tetramino[change.path["t"]] = change.value;
+        game.partita.tetramino[change.path["t"]] = change.value;
     }
 });
