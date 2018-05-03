@@ -16,6 +16,8 @@
     "colyseus.js": "^0.9.1",
     "express": "^4.16.3",
     "nodemon": "^1.17.3",
+    "pixi-engine": "^0.1.5",
+    "pixi.js": "^4.7.3",
     "serve-index": "^1.9.1",
     "superagent": "^3.8.3"
   },
