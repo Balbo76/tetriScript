@@ -203,31 +203,80 @@ let
     down = keyboard(40),
     space = keyboard(32);
 
-document.body.appendChild(app.view);
+function setup(){
+    document.body.appendChild(app.view);
 
-left.press = () => { if (state == play){ room.send({ dir: "left"}); } };
-left.release = () => { console.log('left release');  };
-
-up.press = () => { console.log('up press'); };
-up.release = () => { };
-
-right.press = () => { if (state == play){ room.send({ dir: "right"}); } };
-right.release = () => { };
-
-down.press = () => { if (state == play){ room.send({ dir: "down"}); } };
-down.release = () => { };
-
-space.press = () => {
-    if (state == play){
-        room.send({dir: "rotate"});
-    };
-    if (state == intro){
-        room.send({start: true});
-        state = play;
+    // Keyboard events
+    left.press = () => { if (state == play){ room.send({ dir: "left"}); } };
+    left.release = () => { console.log('left release');  };
+    up.press = () => { console.log('up press'); };
+    up.release = () => { };
+    right.press = () => { if (state == play){ room.send({ dir: "right"}); } };
+    right.release = () => { };
+    down.press = () => { if (state == play){ room.send({ dir: "down"}); } };
+    down.release = () => { };
+    space.press = () => {
+        if (state == play){
+            room.send({dir: "rotate"});
+        };
+        if (state == intro){
+            room.send({start: true});
+            state = play;
+        }
     }
-}
-space.release = () => { };
+    space.release = () => { };
 
+
+    basicText.x = 50;
+    basicText.y = 240;
+
+    app.stage.addChild(basicText);
+    basicText.visible = false;
+
+    app.ticker.add(delta => gameLoop(delta));
+
+
+
+    room.onJoin.add(function () {
+        console.log("joined");
+
+    });
+
+    room.onStateChange.addOnce((state) => { });
+// new room state
+    room.onStateChange.add((state) => { });
+// listen to patches coming from the server
+    room.onMessage.add((data) => { });
+
+    room.listen("players/:uid", (change) => {
+        if (change.operation == "add"){
+        game.partita = change.value;
+    }
+});
+
+    room.listen("players/:uid/gameOver", (change) => {
+        if ((change.operation == "replace") && (change.value == true)){
+        room.send({stop: true});
+        game.gameState = "gameover";
+    }
+});
+
+    room.listen("players/:uid/schermata/:i/:j", (change) => {
+        if (change.operation == "replace"){
+        game.partita.schermata[change.path["i"]][change.path["j"]] = change.value;
+    }
+});
+
+    room.listen("players/:uid:/tetramino/:t", function(change)  {
+        if (change.operation == "replace"){
+            game.partita.tetramino[change.path["t"]] = change.value;
+        }
+    });
+
+
+
+
+}
 
 function keyboard(keyCode) {
     let key = {};
@@ -281,11 +330,11 @@ var style = new PIXI.TextStyle({
     fontSize: 144,
     fontStyle: 'italic',
     fontWeight: 'bold',
-    fill: ['#ffffff', '#00ff99'], // gradient
+    fill: ['#ffffff', '#ffeeee'], // gradient
     stroke: '#4a1850',
-    strokeThickness: 5,
+    strokeThickness: 1,
     dropShadow: true,
-    dropShadowColor: '#000000',
+    dropShadowColor: '#eeeeee',
     dropShadowBlur: 4,
     dropShadowAngle: Math.PI / 6,
     dropShadowDistance: 6,
@@ -293,16 +342,15 @@ var style = new PIXI.TextStyle({
     wordWrapWidth: 440
 });
 var basicText = new PIXI.Text('tetriScript', style);
-basicText.x = 50;
-basicText.y = 240;
-
-app.stage.addChild(basicText);
-basicText.visible = false;
 
 
 
-state = intro;
-app.ticker.add(delta => gameLoop(delta));
+
+var state = intro;
+
+
+
+
 function gameLoop(delta) {
     state(delta);
 }
@@ -323,9 +371,6 @@ function gameover(delta){}
 
 function drawGameScene(){
     var graphics = new PIXI.Graphics();
-
-
-    // this.clearScreen();
 
     graphics.beginFill(0xffffff);
     graphics.lineStyle(2, 0xffffff, 1);
@@ -384,38 +429,4 @@ let host = window.document.location.host.replace(/:.*/, ''),
 
 
 
-room.onJoin.add(function () {
-    console.log("joined");
-
-});
-
-room.onStateChange.addOnce((state) => { });
-// new room state
-room.onStateChange.add((state) => { });
-// listen to patches coming from the server
-room.onMessage.add((data) => { });
-
-room.listen("players/:uid", (change) => {
-    if (change.operation == "add"){
-        game.partita = change.value;
-    }
-});
-
-room.listen("players/:uid/gameOver", (change) => {
-    if ((change.operation == "replace") && (change.value == true)){
-        room.send({stop: true});
-        game.gameState = "gameover";
-    }
-});
-
-room.listen("players/:uid/schermata/:i/:j", (change) => {
-    if (change.operation == "replace"){
-        game.partita.schermata[change.path["i"]][change.path["j"]] = change.value;
-    }
-});
-
-room.listen("players/:uid:/tetramino/:t", function(change)  {
-    if (change.operation == "replace"){
-        game.partita.tetramino[change.path["t"]] = change.value;
-    }
-});
+setup();
