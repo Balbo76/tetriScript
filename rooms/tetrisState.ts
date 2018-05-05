@@ -4,6 +4,9 @@ import { Tetris} from "./tetris";
 export class TetrisState {
     players: EntityMap<Tetris> = {};
 
+
+    constructor(){ }
+
     addPlayer (client) {
         this.players[ client.id ] = new Tetris();
     }

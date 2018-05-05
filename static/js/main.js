@@ -196,6 +196,7 @@ const
 
 let
     game = {},
+    nemico = {},
     app = new PIXI.Application(800, 600, {backgroundColor : 0x000000, antialias: true}),
     keyboard = function(keyCode){
         let key = {};
@@ -239,7 +240,7 @@ let
     txtGameOver = new PIXI.Text(),
     txtLinee = new PIXI.Text(),
     state = intro,
-    scene,
+    scene, enemyScene,
     host = window.document.location.host.replace(/:.*/, ''),
     client = new Colyseus.Client(location.protocol.replace("http", "ws") + host + (location.port ? ':'+location.port : '')),
     room = client.join("tetris");
@@ -261,8 +262,11 @@ function play(delta) {
     basicText.visible = false;
     txtLinee.visible = true;
     app.stage.removeChild(scene);
+    app.stage.removeChild(enemyScene);
     scene = drawGameScene();
+    enemyScene = drawEnemyScene();
     app.stage.addChild(scene);
+    app.stage.addChild(enemyScene);
 }
 function intro(delta){
     basicText.visible = true;
@@ -330,6 +334,71 @@ function drawGameScene(){
                 }
             }
         }
+    }
+    graphics.endFill();
+
+    return graphics;
+}
+
+function drawEnemyScene(){
+    let graphics = new PIXI.Graphics();
+    let offsetX = 500;
+    let offsetY = 250;
+    let blockSize = 13;
+
+    graphics.beginFill(0xffffff);
+    graphics.lineStyle(2, 0xffffff, 1);
+
+    graphics.moveTo(offsetX + 13, offsetY + blockSize * 4 - 5);
+    graphics.lineTo(offsetX + 13, offsetY + blockSize * 24 + 10);
+    graphics.moveTo(offsetX + 5 , offsetY + blockSize * 24 + 5);
+    graphics.lineTo(offsetX + 10 + 11 * blockSize, offsetY + blockSize * 24 + 5);
+    graphics.moveTo(offsetX + 5 + 11 * blockSize, offsetY + blockSize * 4 - 5);
+    graphics.lineTo(offsetX + 5 + 11 * blockSize, offsetY + blockSize * 24 + 10);
+
+    graphics.lineStyle(0, 0x000000, 0);
+
+    if (nemico.partita && nemico.partita.schermata) {
+        for (var i = 0; i < 24; i++) {
+            for (var j = 1; j < 11; j++) {
+                var x = j * blockSize, y = i * blockSize;
+                if (nemico.partita.schermata[i][j] == 0) {
+                    // context.fillStyle = "white";
+                    //context.fillRect(offsetX + x, offsetY + y, blockSize - 1, blockSize - 1);
+                }
+                if (nemico.partita.schermata[i][j] > 0) {
+                    let c = getTetraminoFillStyle(nemico.partita.schermata[i][j]);
+                    if (nemico.partita.schermata[i][j] == 255) {
+                        c = 0xFF0000;
+                    }
+                    graphics.beginFill(c);
+                    graphics.drawRect(offsetX + x, offsetY + y, blockSize - 1, blockSize - 1);
+                }
+            }
+        }
+        // Draw current
+        for (var i = 0; i <= 3; i++) {
+            for (var j = 0; j <= 3; j++) {
+                if (tetramini[nemico.partita.tetramino.corrente][nemico.partita.tetramino.rotazione][i][j] == 1) {
+                    const
+                        x = offsetX + ((nemico.partita.tetramino.x + j) * blockSize),
+                        y = offsetY + ((nemico.partita.tetramino.y + i) * blockSize),
+                        c  = getTetraminoFillStyle(nemico.partita.tetramino.corrente + 1);
+                    graphics.beginFill(c);
+                    graphics.drawRect(x, y, blockSize - 1, blockSize - 1);
+                }
+            }
+        }
+
+
+
+
+
+
+
+
+
+
     }
     graphics.endFill();
 
@@ -431,34 +500,67 @@ function setUpKeyboardEvents() {
 
 function setupServerCallbacks() {
     room.onJoin.add(function () { console.log("joined"); });
-    room.onStateChange.addOnce((state) => { });
-    room.onStateChange.add((state) => { }); // new room state
+    room.onStateChange.addOnce((state) => { console.log(state); });
+    room.onStateChange.add((state) => { console.log(state); }); // new room state
     room.onMessage.add((data) => { }); // listen to patches coming from the server
-    room.listen("players/:uid", (change) => {
-        if (change.operation == "add"){
-            game.partita = change.value;
+
+    room.listen("players/:uid", (change)=>{
+        console.log(change.path["uid"]);
+        console.log(client.id);
+
+        if (change.path["uid"] == client.id){
+            if (change.operation == "add"){
+                game.partita = change.value;
+            }
+        } else {
+            if (change.operation == "add"){
+                nemico.partita = change.value;
+            }
+        }
+
+
+    });
+
+    room.listen("players/:uid/gameOver", (change) => {
+        if (change.path["uid"] == client.id) {
+            if ((change.operation == "replace") && (change.value == true)) {
+                room.send({stop: true});
+                game.gameState = "gameover";
+                state = gameover;
+            }
         }
     });
-        room.listen("players/:uid/gameOver", (change) => {
-            if ((change.operation == "replace") && (change.value == true)){
-            room.send({stop: true});
-            game.gameState = "gameover";
-            state = gameover;
-        }
-    });
-        room.listen("players/:uid/schermata/:i/:j", (change) => {
+
+    room.listen("players/:uid/schermata/:i/:j", (change) => {
+        if (change.path["uid"] == client.id) {
             if (change.operation == "replace") {
-            game.partita.schermata[change.path["i"]][change.path["j"]] = change.value;
+                game.partita.schermata[change.path["i"]][change.path["j"]] = change.value;
+            }
+        } else {
+            if (change.operation == "replace") {
+                nemico.partita.schermata[change.path["i"]][change.path["j"]] = change.value;
+            }
         }
     });
-        room.listen("players/:uid:/tetramino/:t", function(change)  {
+
+    room.listen("players/:uid/tetramino/:t", function(change)  {
+        if (change.path["uid"] == client.id) {
+
             if (change.operation == "replace") {
                 game.partita.tetramino[change.path["t"]] = change.value;
             }
-        });
-        room.listen("players/:uid/lineeFatte", (change) => {
+        } else {
             if (change.operation == "replace") {
-            txtLinee.text = "Fatte linee: " + change.value;
+                nemico.partita.tetramino[change.path["t"]] = change.value;
+            }
+        }
+    });
+
+    room.listen("players/:uid/lineeFatte", (change) => {
+        if (change.path["uid"] == client.id) {
+            if (change.operation == "replace") {
+                txtLinee.text = "Fatte linee: " + change.value;
+            }
         }
     });
 }
