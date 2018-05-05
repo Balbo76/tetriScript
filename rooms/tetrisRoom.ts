@@ -11,7 +11,6 @@ export class TetrisRoom extends Room {
 
     onInit (options) {
         this.setState(new TetrisState());
-        //this.setPatchRate(50);
         this.setSimulationInterval(() => this.update(), 20);
         this.speedDivisor = 50;
     }

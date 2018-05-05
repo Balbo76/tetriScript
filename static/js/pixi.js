@@ -13697,7 +13697,7 @@ var WebGLRenderer = function (_SystemRenderer) {
 
         this.emit('context', gl);
 
-        // setup the width/height properties and gl viewport
+        // start the width/height properties and gl viewport
         this.resize(this.screen.width, this.screen.height);
     };
 
@@ -20973,7 +20973,7 @@ var BaseTexture = function (_EventEmitter) {
 
         this.source = source;
 
-        // Apply source if loaded. Otherwise setup appropriate loading monitors.
+        // Apply source if loaded. Otherwise start appropriate loading monitors.
         if ((source.src && source.complete || source.getContext) && source.width && source.height) {
             this._updateImageType();
 
@@ -35491,7 +35491,7 @@ var ParticleRenderer = function (_core$ObjectRenderer) {
 
         this.CONTEXT_UID = this.renderer.CONTEXT_UID;
 
-        // setup default shader
+        // start default shader
         this.shader = new _ParticleShader2.default(gl);
 
         this.properties = [
