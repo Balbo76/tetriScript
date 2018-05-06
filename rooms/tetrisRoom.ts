@@ -5,17 +5,9 @@ export class TetrisRoom extends Room {
 
     maxClients = 2;
 
-    i: number;
-    speedDivisor: number;
-    stato: string;
-
-
     onInit (options) {
         this.setState(new TetrisState());
         this.setSimulationInterval(() => this.update(), 20);
-        this.speedDivisor = 50;
-        this.i = 0;
-        this.stato = "started";
     }
 
     onJoin (client) {
@@ -26,19 +18,11 @@ export class TetrisRoom extends Room {
     onLeave (client) {
         console.log("onLeave");
         this.state.removePlayer(client);
-        this.stato = "waiting";
     }
 
     onMessage (client, data) {
         if (data.start){
             this.state.addPlayer(client);
-            if (this.clients.length == 2) {
-                this.stato = "playing";
-            }
-            if (this.clients.length == 1) {
-                this.stato = "waiting";
-            }
-
         }
         if (data.stop){
             this.state.removePlayer(client);
@@ -59,16 +43,8 @@ export class TetrisRoom extends Room {
     update () {
         const d = Math.random();
 
-        if (this.stato == "playing"){
-            if ((this.i % this.speedDivisor) == 0) {
-                for (let entityId in this.state.players) {
-                    this.state.players[entityId].moveDown();
-                }
-            }
-            this.i++;
-            if (this.i == (this.speedDivisor * 10)) {
-                this.i = 0;
-            }
+        for (let entityId in this.state.players) {
+            this.state.players[entityId].tick();
         }
 
     }

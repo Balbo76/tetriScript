@@ -6,6 +6,9 @@ export class Tetris {
     gameOver : boolean;
     lineeFatte : number;
     tetramino : Tetramino;
+    i: number;
+    speedDivisor: number;
+    paused: boolean;
 
     constructor ( ) {
         this.schermata = new Array();
@@ -16,35 +19,52 @@ export class Tetris {
         this.gameOver = false;
         this.lineeFatte = 0;
         this.tetramino = new Tetramino();
+        this.i = 0;
+        this.speedDivisor = 50;
+        this.paused = true;
+    }
+
+    tick(){
+        if (!this.paused ){
+            if ((this.i % this.speedDivisor) == 0) {
+                this.moveDown();
+            }
+            this.i++;
+            if (this.i == (this.speedDivisor * 10)) {
+                this.i = 0;
+            }
+        }
     }
 
     moveLeft(){
-        if (this.canGoLeft()) { this.tetramino.x--; }
+        if (!this.paused && this.canGoLeft()) { this.tetramino.x--; }
     }
 
     moveRight(){
-        if (this.canGoRight()) { this.tetramino.x++; }
+        if (!this.paused && this.canGoRight()) { this.tetramino.x++; }
     }
 
     moveDown(){
-        if (this.canGoDown()){
-            this.tetramino.y++;
-        }
-        else {
-            this.addToSchermata();
-            const nLinee = this.checkForLines();
-            this.tetramino.corrente = this.tetramino.prossimo;
-            this.tetramino.prossimo = Math.floor(Math.random() * 7);
-            this.tetramino.x = 4;
-            this.tetramino.y = 0;
-            if (this.checkForGameOver()) {
-                this.gameOver = true;
+        if (!this.paused){
+            if (this.canGoDown()){
+                this.tetramino.y++;
+            }
+            else {
+                this.addToSchermata();
+                const nLinee = this.checkForLines();
+                this.tetramino.corrente = this.tetramino.prossimo;
+                this.tetramino.prossimo = Math.floor(Math.random() * 7);
+                this.tetramino.x = 4;
+                this.tetramino.y = 0;
+                if (this.checkForGameOver()) {
+                    this.gameOver = true;
+                }
             }
         }
     }
 
     rotate(){
-        if (this.canRotate()){ this.tetramino.rotazione = (this.tetramino.rotazione + 1 ) % 4; }
+        if (!this.paused && this.canRotate()){ this.tetramino.rotazione = (this.tetramino.rotazione + 1 ) % 4; }
     }
 
     addToSchermata(){

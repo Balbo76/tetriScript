@@ -239,8 +239,15 @@ let
     basicText = new PIXI.Text(),
     txtGameOver = new PIXI.Text(),
     txtLinee = new PIXI.Text(),
+    txtSfidante = new PIXI.Text(),
     state = intro,
     scene, enemyScene,
+
+    introScene = new PIXI.Container(),
+    gameScene = new PIXI.Container(),
+    gameOverScene = new PIXI.Container(),
+
+
     host = window.document.location.host.replace(/:.*/, ''),
     client = new Colyseus.Client(location.protocol.replace("http", "ws") + host + (location.port ? ':'+location.port : '')),
     room = client.join("tetris");
@@ -259,20 +266,28 @@ function gameLoop(delta) {
     state(delta);
 }
 function play(delta) {
-    basicText.visible = false;
-    txtLinee.visible = true;
-    app.stage.removeChild(scene);
-    app.stage.removeChild(enemyScene);
+    introScene.visible = false;
+    gameOverScene.visible = false;
+    gameScene.visible = true;
+
+
+    gameScene.removeChild(scene);
+    gameScene.removeChild(enemyScene);
     scene = drawGameScene();
     enemyScene = drawEnemyScene();
-    app.stage.addChild(scene);
-    app.stage.addChild(enemyScene);
+    gameScene.addChild(scene);
+    gameScene.addChild(enemyScene);
 }
 function intro(delta){
-    basicText.visible = true;
-    txtGameOver.visible = false;
+    introScene.visible = true;
+    gameOverScene.visible = false;
+    gameScene.visible = false;
 }
-function gameover(delta){ txtGameOver.visible = true; }
+function gameover(delta){
+    introScene.visible = false;
+    gameOverScene.visible = true;
+    gameScene.visible = true;
+}
 
 function drawGameScene(){
     var graphics = new PIXI.Graphics();
@@ -412,13 +427,13 @@ function setUpTexts() {
             fontSize: 144,
             fontStyle: 'italic',
             fontWeight: 'bold',
-            fill: ['#ffffff', '#ffeeee'], // gradient
-            stroke: '#4a1850',
-            strokeThickness: 1,
+            fill: ['#000000', '#0000ff'], // gradient
+            stroke: '#eeeeee',
+            strokeThickness: 2,
             dropShadow: true,
-            dropShadowColor: '#eeeeee',
-            dropShadowBlur: 4,
-            dropShadowAngle: Math.PI / 6,
+            dropShadowColor: '#448888',
+            dropShadowBlur: 25,
+            dropShadowAngle: Math.PI / 4,
             dropShadowDistance: 6,
             wordWrap: true,
             wordWrapWidth: 440
@@ -443,27 +458,39 @@ function setUpTexts() {
 
 
     basicText.text = 'tetriScript';
-    txtGameOver.text = 'Game Over';
-    txtLinee.text = 'Linee fatte: 0';
-
     basicText.style = style;
-    txtGameOver.style = style;
-    txtLinee.style = style2;
-
     basicText.x = 50;
     basicText.y = 240;
-    app.stage.addChild(basicText);
-    basicText.visible = false;
 
+    txtGameOver.text = 'Game Over';
+    txtGameOver.style = style;
     txtGameOver.x = 50;
     txtGameOver.y = 240;
-    app.stage.addChild(txtGameOver);
-    txtGameOver.visible = false;
 
+    txtLinee.text = 'Linee fatte: 0';
+    txtLinee.style = style2;
     txtLinee.x = 550;
     txtLinee.y = 100;
-    app.stage.addChild(txtLinee);
-    txtLinee.visible = false;
+
+    txtSfidante.text = 'Attesa sfidante';
+    txtSfidante.style = style2;
+    txtSfidante.x = 50;
+    txtSfidante.y = 200;
+
+
+    introScene.addChild(basicText);
+    app.stage.addChild(introScene);
+    introScene.visible = true;
+
+    gameOverScene.addChild(txtGameOver);
+    app.stage.addChild(gameOverScene);
+    gameOverScene.visible = false;
+
+    gameScene.addChild(txtLinee);
+    gameScene.addChild(txtSfidante);
+    app.stage.addChild(gameScene);
+    gameScene.visible = false;
+
 }
 
 function setUpKeyboardEvents() {
@@ -528,6 +555,15 @@ function setupServerCallbacks() {
                 game.gameState = "gameover";
                 state = gameover;
             }
+        }
+    });
+
+    room.listen("statoSfida", (change) => {
+        console.log(change);
+        if (change.operation == "replace") {
+            if (change.value == "ready"){
+                txtSfidante.visible = false;
+            };
         }
     });
 
