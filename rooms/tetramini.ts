@@ -1,4 +1,4 @@
-export const tetramini = [
+export const tetraminiCache = [
     [
         [
             [0, 0, 0, 0],

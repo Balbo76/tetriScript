@@ -205,12 +205,17 @@ let
         key.isUp = true;
         key.press = undefined;
         key.release = undefined;
+        key.timer = undefined;
         //The `downHandler`
         key.downHandler = event => {
             if (event.keyCode === key.code) {
                 if (key.isUp && key.press) key.press();
                 key.isDown = true;
                 key.isUp = false;
+                key.timer = setTimeout(()=>{
+                    key.isDown = false;
+                    key.isUp = true;
+                }, 100);
             }
             event.preventDefault();
         };
@@ -221,6 +226,7 @@ let
                 if (key.isDown && key.release) key.release();
                 key.isDown = false;
                 key.isUp = true;
+                clearTimeout(key.timer);
             }
             event.preventDefault();
         };

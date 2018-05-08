@@ -1,5 +1,5 @@
 import {Tetramino} from "./tetramino";
-import {tetramini} from "./tetramini";
+import {tetraminiCache} from "./tetramini";
 
 export class Tetris {
     schermata : Array<any>;
@@ -70,7 +70,7 @@ export class Tetris {
     addToSchermata(){
         for (let i=0; i<=3; i++) {
             for (let j=0; j<=3; j++) {
-                if (tetramini[this.tetramino.corrente][this.tetramino.rotazione][j][i] == 1) {
+                if (tetraminiCache[this.tetramino.corrente][this.tetramino.rotazione][j][i] == 1) {
                     let
                         lx = this.tetramino.x + i,
                         ly = this.tetramino.y + j;
@@ -90,7 +90,7 @@ export class Tetris {
 
         for (let i=0; i<=3; i++) {
             for (let j=0; j<=3; j++) {
-                if (tetramini[this.tetramino.corrente][mr][i][j] == 1) {
+                if (tetraminiCache[this.tetramino.corrente][mr][i][j] == 1) {
                     const
                         x = mx + j,
                         y = my + i;
@@ -137,7 +137,7 @@ export class Tetris {
             }
         }
         this.lineeFatte = this.lineeFatte + linee.length;
-        console.log("fatte linee n: " + this.lineeFatte);
+
         return linee.length;
     };
 

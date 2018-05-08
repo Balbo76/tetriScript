@@ -13,14 +13,16 @@ export class TetrisState {
     }
 
     addPlayer (client) {
-        this.players[ client.id ] = new Tetris();
-        this.clientsNumber++;
-        this.setStatoSfida();
+        if (!this.players[ client.id ]){
+            this.players[ client.id ] = new Tetris();
+            this.clientsNumber++;
+            this.setStatoSfida();
+        }
     }
 
     removePlayer (client) {
-        this.clientsNumber--;
         delete this.players[ client.id ];
+        this.clientsNumber--;
         this.setStatoSfida();
     }
 
