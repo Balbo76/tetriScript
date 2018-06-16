@@ -59,6 +59,8 @@ export class Tetris {
                 if (this.checkForGameOver()) {
                     this.gameOver = true;
                 }
+
+                return nLinee;
             }
         }
     }
@@ -78,6 +80,26 @@ export class Tetris {
                 }
             }
         }
+    }
+
+    aggiungiLinee(nlinee){
+
+        nlinee--;
+
+        for (let i = 1; i < 23-nlinee; i++) {
+            for (let j = 1; j <= 10; j++) {
+                this.schermata[i-1][j] = this.schermata[i][j];
+            }
+        }
+
+        for (let i = 23; i > 23-nlinee; i--) {
+            for (let j = 1; j <= 10; j++) {
+                this.schermata[i-1][j] = this.schermata[i][j];
+            }
+        }
+
+
+
     }
 
     canGo(xx,yy,rr) {

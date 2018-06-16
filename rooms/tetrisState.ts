@@ -3,6 +3,8 @@ import { Tetris} from "./tetris";
 
 export class TetrisState {
     players: EntityMap<Tetris> = {};
+    playerA: String;
+    playerB: String;
     statoSfida: string;
     clientsNumber: number;
 
@@ -16,6 +18,8 @@ export class TetrisState {
         if (!this.players[ client.id ]){
             this.players[ client.id ] = new Tetris();
             this.clientsNumber++;
+            if (this.clientsNumber == 1){ this.playerA = client.id }
+            if (this.clientsNumber == 2){ this.playerB = client.id; }
             this.setStatoSfida();
         }
     }
@@ -35,11 +39,23 @@ export class TetrisState {
     }
 
     moveDown (client){
-        this.players[client.id].moveDown();
+        const nlinee = this.players[client.id].moveDown();
+        if (nlinee > 1){
+            if (client.id == this.playerA){
+                this.aggiungiLinee(this.playerB, nlinee);
+            } else {
+                this.aggiungiLinee(this.playerA, nlinee);
+            }
+        }
+
     }
 
     rotate (client){
         this.players[client.id].rotate();
+    }
+
+    aggiungiLinee(player, nlinee){
+        this.players[player].aggiungiLinee(nlinee);
     }
 
     setStatoSfida(){
