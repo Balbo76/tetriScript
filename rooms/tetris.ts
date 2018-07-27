@@ -52,10 +52,18 @@ export class Tetris {
             else {
                 this.addToSchermata();
                 const nLinee = this.checkForLines();
+                this.lineeFatte = this.lineeFatte + nLinee;
                 this.tetramino.corrente = this.tetramino.prossimo;
-                this.tetramino.prossimo = Math.floor(Math.random() * 7);
+                for (; this.tetramino.prossimo == this.tetramino.corrente; ){
+                    this.tetramino.prossimo = Math.floor(Math.random() * 7);
+                }
                 this.tetramino.x = 4;
                 this.tetramino.y = 0;
+
+                if (this.lineeFatte > 5){ this.speedDivisor = 40; }
+                if (this.lineeFatte > 10){ this.speedDivisor = 30; }
+                if (this.lineeFatte > 15){ this.speedDivisor = 20; }
+
                 if (this.checkForGameOver()) {
                     this.gameOver = true;
                 }
@@ -86,19 +94,19 @@ export class Tetris {
 
         nlinee--;
 
-        for (let i = 1; i < 23-nlinee; i++) {
-            for (let j = 1; j <= 10; j++) {
-                this.schermata[i-1][j] = this.schermata[i][j];
+        for (let k = 0; k < nlinee; k++) {
+            for (let i = 1; i < 23; i++) {
+                for (let j = 1; j <= 10; j++) {
+                    this.schermata[i-1][j] = this.schermata[i][j];
+                }
             }
         }
 
-        for (let i = 23; i > 23-nlinee; i--) {
+        for (let k = 0; k < nlinee; k++) {
             for (let j = 1; j <= 10; j++) {
-                this.schermata[i-1][j] = this.schermata[i][j];
+                this.schermata[23 - k][j] = Math.floor(Math.random() * 7);
             }
         }
-
-
 
     }
 
