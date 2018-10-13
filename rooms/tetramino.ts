@@ -1,10 +1,11 @@
 export class Tetramino {
 
     corrente : number;
-    prossimo: number;
-    rotazione: number;
     x: number;
     y: number;
+    rotazione: number;
+
+    prossimo: number;
 
     constructor(){
         this.corrente = Math.floor(Math.random() * 7);

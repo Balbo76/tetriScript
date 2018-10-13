@@ -305,6 +305,8 @@ let
 
     state = intro,
 
+    winner = false,
+
     // Draw game loop functions
     drawGameScene = () => {
         const graphics = new PIXI.Graphics();
@@ -561,6 +563,17 @@ let
                     room.send({stop: true});
                     game.gameState = "gameover";
                     state = gameover;
+                }
+            }
+        });
+
+        room.listen("players/:uid/winner", (change) => {
+            if (change.path["uid"] == client.id) {
+                if ((change.operation == "replace") && (change.value == true)) {
+                    winner = true;
+                } else if ((change.operation == "replace") && (change.value == false)) {
+                    winner = false;
+
                 }
             }
         });

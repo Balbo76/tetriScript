@@ -65,13 +65,9 @@ export class TetrisState {
                 this.players[entityId].paused = false;
             }
         }
-        if (this.clientsNumber == 1) {
-            this.statoSfida = "waiting";
-        }
-        if (this.clientsNumber == 0) {
-            this.statoSfida = "init";
-        }
-        console.log("-> " + this.statoSfida);
+        if (this.clientsNumber == 1) { this.statoSfida = "waiting"; }
+        if (this.clientsNumber == 0) { this.statoSfida = "init"; }
+        //console.log("statoSfida -> " + this.statoSfida);
     }
 
 }

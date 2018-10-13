@@ -4,6 +4,7 @@ import {tetraminiCache} from "./tetramini";
 export class Tetris {
     schermata : Array<any>;
     gameOver : boolean;
+    winner: boolean;
     lineeFatte : number;
     tetramino : Tetramino;
     i: number;
@@ -17,6 +18,7 @@ export class Tetris {
         }
         this.schermata.push(new Array(255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255));
         this.gameOver = false;
+        this.winner = null;
         this.lineeFatte = 0;
         this.tetramino = new Tetramino();
         this.i = 0;
@@ -103,7 +105,7 @@ export class Tetris {
         }
 
         for (let k = 0; k < nlinee; k++) {
-            for (let j = 1; j <= 10; j++) {
+            for (let j = 1; j <= 9; j++) {
                 this.schermata[23 - k][j] = Math.floor(Math.random() * 7);
             }
         }
