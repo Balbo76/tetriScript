@@ -8,7 +8,7 @@
       "sizes": "180x180"
     }
   ],
-  "start_url": "/",
+  "start_url": ".",
   "display": "fullscreen",
   "lang": "it-IT",
   "background_color": "#fff",
