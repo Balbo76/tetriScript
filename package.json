@@ -17,7 +17,8 @@
     "colyseus": "^0.9.5",
     "colyseus.js": "^0.9.1",
     "express": "^4.16.3",
-    "nodemon": "^1.17.3",
+    "nodemon": "^1.18.4",
+    "npm": "^6.4.1",
     "pixi-engine": "^0.1.5",
     "pixi.js": "^4.7.3",
     "serve-index": "^1.9.1",
@@ -26,6 +27,6 @@
   "devDependencies": {
     "browserify": "^16.2.0",
     "ts-node": "^6.0.2",
-    "typescript": "^2.8.3"
+    "typescript": "^2.9.2"
   }
 }
