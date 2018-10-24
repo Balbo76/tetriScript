@@ -1,41 +1,5 @@
 (function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.PixiEngine = f()}})(function(){var define,module,exports;return (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
 "use strict";
-var Clock = (function () {
-    function Clock(useInterval) {
-        if (useInterval === void 0) { useInterval = false; }
-        this.running = false;
-        this.now = (typeof (window) !== "undefined" && window.performance && window.performance.now && (window.performance.now).bind(window.performance)) || Date.now;
-        this.start(useInterval);
-    }
-    Clock.prototype.start = function (useInterval) {
-        if (useInterval === void 0) { useInterval = false; }
-        this.deltaTime = 0;
-        this.currentTime = this.now();
-        this.elapsedTime = 0;
-        this.running = true;
-        if (useInterval) {
-            // auto set interval to 60 ticks per second
-            this._interval = setInterval(this.tick.bind(this), 1000 / 60);
-        }
-    };
-    Clock.prototype.stop = function () {
-        this.running = false;
-        if (this._interval) {
-            clearInterval(this._interval);
-        }
-    };
-    Clock.prototype.tick = function (newTime) {
-        if (newTime === void 0) { newTime = this.now(); }
-        this.deltaTime = newTime - this.currentTime;
-        this.currentTime = newTime;
-        this.elapsedTime += this.deltaTime;
-    };
-    return Clock;
-}());
-module.exports = Clock;
-
-},{}],2:[function(require,module,exports){
-"use strict";
 var __extends = (this && this.__extends) || (function () {
     var extendStatics = Object.setPrototypeOf ||
         ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
@@ -47,7 +11,7 @@ var __extends = (this && this.__extends) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-var Clock = require("@gamestdio/clock");
+var Clock = require("clock.js");
 var Delayed_1 = require("./Delayed");
 var ClockTimer = (function (_super) {
     __extends(ClockTimer, _super);
@@ -61,9 +25,13 @@ var ClockTimer = (function (_super) {
         _super.prototype.tick.call(this);
         var i = this.delayed.length;
         while (i--) {
-            this.delayed[i].tick(this.deltaTime);
-            if (!this.delayed[i].active) {
+            var delayed = this.delayed[i];
+            if (delayed.active) {
+                delayed.tick(this.deltaTime);
+            }
+            else {
                 this.delayed.splice(i, 1);
+                continue;
             }
         }
     };
@@ -96,7 +64,7 @@ var ClockTimer = (function (_super) {
 }(Clock));
 exports.ClockTimer = ClockTimer;
 
-},{"./Delayed":3,"@gamestdio/clock":1}],3:[function(require,module,exports){
+},{"./Delayed":2,"clock.js":5}],2:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var Type;
@@ -107,13 +75,17 @@ var Type;
 var Delayed = (function () {
     function Delayed(handler, args, time, type) {
         this.active = true;
+        this.paused = false;
+        this.elapsedTime = 0;
         this.handler = handler;
         this.args = args;
         this.time = time;
-        this.elapsedTime = 0;
         this.type = type;
     }
     Delayed.prototype.tick = function (deltaTime) {
+        if (this.paused) {
+            return;
+        }
         this.elapsedTime += deltaTime;
         if (this.elapsedTime >= this.time) {
             this.execute();
@@ -131,6 +103,12 @@ var Delayed = (function () {
     Delayed.prototype.reset = function () {
         this.elapsedTime = 0;
     };
+    Delayed.prototype.pause = function () {
+        this.paused = true;
+    };
+    Delayed.prototype.resume = function () {
+        this.paused = false;
+    };
     Delayed.prototype.clear = function () {
         this.active = false;
     };
@@ -138,7 +116,7 @@ var Delayed = (function () {
 }());
 exports.Delayed = Delayed;
 
-},{}],4:[function(require,module,exports){
+},{}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var Delayed_1 = require("./Delayed");
@@ -147,7 +125,7 @@ exports.Type = Delayed_1.Type;
 var ClockTimer_1 = require("./ClockTimer");
 exports.default = ClockTimer_1.ClockTimer;
 
-},{"./ClockTimer":2,"./Delayed":3}],5:[function(require,module,exports){
+},{"./ClockTimer":1,"./Delayed":2}],4:[function(require,module,exports){
 /**
  * Bit twiddling hacks for JavaScript.
  *
@@ -352,6 +330,42 @@ exports.nextCombination = function(v) {
   return (t + 1) | (((~t & -~t) - 1) >>> (countTrailingZeros(v) + 1));
 }
 
+
+},{}],5:[function(require,module,exports){
+"use strict";
+var Clock = (function () {
+    function Clock(useInterval) {
+        if (useInterval === void 0) { useInterval = false; }
+        this.running = false;
+        this.now = (typeof (window) !== "undefined" && window.performance && (window.performance.now).bind(window.performance)) || Date.now;
+        this.start(useInterval);
+    }
+    Clock.prototype.start = function (useInterval) {
+        if (useInterval === void 0) { useInterval = false; }
+        this.deltaTime = 0;
+        this.currentTime = this.now();
+        this.elapsedTime = 0;
+        this.running = true;
+        if (useInterval) {
+            // auto set interval to 60 ticks per second
+            this._interval = setInterval(this.tick.bind(this), 1000 / 60);
+        }
+    };
+    Clock.prototype.stop = function () {
+        this.running = false;
+        if (this._interval) {
+            clearInterval(this._interval);
+        }
+    };
+    Clock.prototype.tick = function (newTime) {
+        if (newTime === void 0) { newTime = this.now(); }
+        this.deltaTime = newTime - this.currentTime;
+        this.currentTime = newTime;
+        this.elapsedTime += this.deltaTime;
+    };
+    return Clock;
+}());
+module.exports = Clock;
 
 },{}],6:[function(require,module,exports){
 'use strict';
@@ -1750,6 +1764,9 @@ module.exports = function parseURI (str, opts) {
 
 },{}],12:[function(require,module,exports){
 (function (process){
+// .dirname, .basename, and .extname methods are extracted from Node.js v8.11.1,
+// backported and transplited with Babel, with backwards-compat fixes
+
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -1800,14 +1817,6 @@ function normalizeArray(parts, allowAboveRoot) {
 
   return parts;
 }
-
-// Split a filename into [root, dir, basename, ext], unix version
-// 'root' is just a slash, or nothing.
-var splitPathRe =
-    /^(\/?|)([\s\S]*?)((?:\.{1,2}|[^\/]+?|)(\.[^.\/]*|))(?:[\/]*)$/;
-var splitPath = function(filename) {
-  return splitPathRe.exec(filename).slice(1);
-};
 
 // path.resolve([from ...], to)
 // posix version
@@ -1924,37 +1933,120 @@ exports.relative = function(from, to) {
 exports.sep = '/';
 exports.delimiter = ':';
 
-exports.dirname = function(path) {
-  var result = splitPath(path),
-      root = result[0],
-      dir = result[1];
-
-  if (!root && !dir) {
-    // No dirname whatsoever
-    return '.';
+exports.dirname = function (path) {
+  if (typeof path !== 'string') path = path + '';
+  if (path.length === 0) return '.';
+  var code = path.charCodeAt(0);
+  var hasRoot = code === 47 /*/*/;
+  var end = -1;
+  var matchedSlash = true;
+  for (var i = path.length - 1; i >= 1; --i) {
+    code = path.charCodeAt(i);
+    if (code === 47 /*/*/) {
+        if (!matchedSlash) {
+          end = i;
+          break;
+        }
+      } else {
+      // We saw the first non-path separator
+      matchedSlash = false;
+    }
   }
 
-  if (dir) {
-    // It has a dirname, strip trailing slash
-    dir = dir.substr(0, dir.length - 1);
+  if (end === -1) return hasRoot ? '/' : '.';
+  if (hasRoot && end === 1) {
+    // return '//';
+    // Backwards-compat fix:
+    return '/';
   }
-
-  return root + dir;
+  return path.slice(0, end);
 };
 
+function basename(path) {
+  if (typeof path !== 'string') path = path + '';
 
-exports.basename = function(path, ext) {
-  var f = splitPath(path)[2];
-  // TODO: make this comparison case-insensitive on windows?
+  var start = 0;
+  var end = -1;
+  var matchedSlash = true;
+  var i;
+
+  for (i = path.length - 1; i >= 0; --i) {
+    if (path.charCodeAt(i) === 47 /*/*/) {
+        // If we reached a path separator that was not part of a set of path
+        // separators at the end of the string, stop now
+        if (!matchedSlash) {
+          start = i + 1;
+          break;
+        }
+      } else if (end === -1) {
+      // We saw the first non-path separator, mark this as the end of our
+      // path component
+      matchedSlash = false;
+      end = i + 1;
+    }
+  }
+
+  if (end === -1) return '';
+  return path.slice(start, end);
+}
+
+// Uses a mixed approach for backwards-compatibility, as ext behavior changed
+// in new Node.js versions, so only basename() above is backported here
+exports.basename = function (path, ext) {
+  var f = basename(path);
   if (ext && f.substr(-1 * ext.length) === ext) {
     f = f.substr(0, f.length - ext.length);
   }
   return f;
 };
 
+exports.extname = function (path) {
+  if (typeof path !== 'string') path = path + '';
+  var startDot = -1;
+  var startPart = 0;
+  var end = -1;
+  var matchedSlash = true;
+  // Track the state of characters (if any) we see before our first dot and
+  // after any path separator we find
+  var preDotState = 0;
+  for (var i = path.length - 1; i >= 0; --i) {
+    var code = path.charCodeAt(i);
+    if (code === 47 /*/*/) {
+        // If we reached a path separator that was not part of a set of path
+        // separators at the end of the string, stop now
+        if (!matchedSlash) {
+          startPart = i + 1;
+          break;
+        }
+        continue;
+      }
+    if (end === -1) {
+      // We saw the first non-path separator, mark this as the end of our
+      // extension
+      matchedSlash = false;
+      end = i + 1;
+    }
+    if (code === 46 /*.*/) {
+        // If this is our first dot, mark it as the start of our extension
+        if (startDot === -1)
+          startDot = i;
+        else if (preDotState !== 1)
+          preDotState = 1;
+    } else if (startDot !== -1) {
+      // We saw a non-dot and non-path separator before our dot, so we should
+      // have a good chance at having a non-empty extension
+      preDotState = -1;
+    }
+  }
 
-exports.extname = function(path) {
-  return splitPath(path)[3];
+  if (startDot === -1 || end === -1 ||
+      // We saw a non-dot character immediately before the dot
+      preDotState === 0 ||
+      // The (right-most) trimmed path component is exactly '..'
+      preDotState === 1 && startDot === end - 1 && startDot === startPart + 1) {
+    return '';
+  }
+  return path.slice(startDot, end);
 };
 
 function filter (xs, f) {
@@ -1993,7 +2085,7 @@ var PIXI = require("pixi.js");
 var timer_1 = require("@gamestdio/timer");
 var Application = /** @class */ (function (_super) {
     __extends(Application, _super);
-    function Application() {
+    function Application(opts) {
         var _this = _super.call(this) || this;
         _this.onResize = function () {
             // resize renderer
@@ -2008,9 +2100,9 @@ var Application = /** @class */ (function (_super) {
         _this.onResize();
         return _this;
     }
-    Application.getInstance = function () {
+    Application.getInstance = function (opts) {
         if (!this.instance) {
-            this.instance = new Application();
+            this.instance = new Application(opts);
         }
         return this.instance;
     };
@@ -2019,7 +2111,7 @@ var Application = /** @class */ (function (_super) {
 }(PIXI.Application));
 exports.Application = Application;
 
-},{"@gamestdio/timer":4,"pixi.js":151}],14:[function(require,module,exports){
+},{"@gamestdio/timer":3,"pixi.js":151}],14:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var PIXI = require("pixi.js");
@@ -2115,11 +2207,11 @@ exports.action = action;
 
 },{"pixi.js":151}],15:[function(require,module,exports){
 "use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
 //
 // PIXI.js patches
 // To integrate with the engine
 //
+Object.defineProperty(exports, "__esModule", { value: true });
 var PIXI = require("pixi.js");
 var eventemitter3_1 = require("eventemitter3");
 var updateListeners = new Map();
@@ -2170,6 +2262,7 @@ globalEvents.on("removed", function (displayObject) {
     }
 });
 var addChild = PIXI.Container.prototype.addChild;
+var addChildAt = PIXI.Container.prototype.addChildAt;
 var removeChild = PIXI.Container.prototype.removeChild;
 var removeChildAt = PIXI.Container.prototype.removeChildAt;
 function patchedAddChild(child) {
@@ -2186,6 +2279,10 @@ function patchedAddChild(child) {
         _loop_1(i);
     }
     return addChild.apply(this, arguments);
+}
+function patchedAddChildAt(child, index) {
+    child.on("added", function () { return globalEvents.emit("added", child); });
+    return addChildAt.apply(this, arguments);
 }
 function patchedRemoveChild() {
     var children = [];
@@ -2204,6 +2301,7 @@ function patchedRemoveChildAt(index) {
     return child;
 }
 PIXI.Container.prototype.addChild = patchedAddChild;
+PIXI.Container.prototype.addChildAt = patchedAddChildAt;
 PIXI.Container.prototype.removeChild = patchedRemoveChild;
 PIXI.Container.prototype.removeChildAt = patchedRemoveChildAt;
 
@@ -4137,7 +4235,7 @@ var AccessibilityManager = function () {
 
         this.isActive = false;
 
-        window.document.removeEventListener('mousemove', this._onMouseMove);
+        window.document.removeEventListener('mousemove', this._onMouseMove, true);
         window.addEventListener('keydown', this._onKeyDown, false);
 
         this.renderer.off('postrender', this.update);
@@ -4170,7 +4268,7 @@ var AccessibilityManager = function () {
 
         var children = displayObject.children;
 
-        for (var i = children.length - 1; i >= 0; i--) {
+        for (var i = 0; i < children.length; i++) {
             this.updateAccessibleObjects(children[i]);
         }
     };
@@ -4239,6 +4337,14 @@ var AccessibilityManager = function () {
 
                     div.style.width = hitArea.width * sx + 'px';
                     div.style.height = hitArea.height * sy + 'px';
+
+                    // update button titles and hints if they exist and they've changed
+                    if (div.title !== child.accessibleTitle && child.accessibleTitle !== null) {
+                        div.title = child.accessibleTitle;
+                    }
+                    if (div.getAttribute('aria-label') !== child.accessibleHint && child.accessibleHint !== null) {
+                        div.setAttribute('aria-label', child.accessibleHint);
+                    }
                 }
             }
         }
@@ -4297,18 +4403,34 @@ var AccessibilityManager = function () {
             div.style.zIndex = DIV_TOUCH_ZINDEX;
             div.style.borderStyle = 'none';
 
+            // ARIA attributes ensure that button title and hint updates are announced properly
+            if (navigator.userAgent.toLowerCase().indexOf('chrome') > -1) {
+                // Chrome doesn't need aria-live to work as intended; in fact it just gets more confused.
+                div.setAttribute('aria-live', 'off');
+            } else {
+                div.setAttribute('aria-live', 'polite');
+            }
+
+            if (navigator.userAgent.match(/rv:.*Gecko\//)) {
+                // FireFox needs this to announce only the new button name
+                div.setAttribute('aria-relevant', 'additions');
+            } else {
+                // required by IE, other browsers don't much care
+                div.setAttribute('aria-relevant', 'text');
+            }
+
             div.addEventListener('click', this._onClick.bind(this));
             div.addEventListener('focus', this._onFocus.bind(this));
             div.addEventListener('focusout', this._onFocusOut.bind(this));
         }
 
-        if (displayObject.accessibleTitle) {
+        if (displayObject.accessibleTitle && displayObject.accessibleTitle !== null) {
             div.title = displayObject.accessibleTitle;
-        } else if (!displayObject.accessibleTitle && !displayObject.accessibleHint) {
-            div.title = 'displayObject ' + this.tabIndex;
+        } else if (!displayObject.accessibleHint || displayObject.accessibleHint === null) {
+            div.title = 'displayObject ' + displayObject.tabIndex;
         }
 
-        if (displayObject.accessibleHint) {
+        if (displayObject.accessibleHint && displayObject.accessibleHint !== null) {
             div.setAttribute('aria-label', displayObject.accessibleHint);
         }
 
@@ -4346,6 +4468,9 @@ var AccessibilityManager = function () {
 
 
     AccessibilityManager.prototype._onFocus = function _onFocus(e) {
+        if (!e.target.getAttribute('aria-live', 'off')) {
+            e.target.setAttribute('aria-live', 'assertive');
+        }
         var interactionManager = this.renderer.plugins.interaction;
 
         interactionManager.dispatchEvent(e.target.displayObject, 'mouseover', interactionManager.eventData);
@@ -4360,6 +4485,9 @@ var AccessibilityManager = function () {
 
 
     AccessibilityManager.prototype._onFocusOut = function _onFocusOut(e) {
+        if (!e.target.getAttribute('aria-live', 'off')) {
+            e.target.setAttribute('aria-live', 'polite');
+        }
         var interactionManager = this.renderer.plugins.interaction;
 
         interactionManager.dispatchEvent(e.target.displayObject, 'mouseout', interactionManager.eventData);
@@ -4385,10 +4513,15 @@ var AccessibilityManager = function () {
      * Is called when the mouse moves across the renderer element
      *
      * @private
+     * @param {MouseEvent} e - The mouse event.
      */
 
 
-    AccessibilityManager.prototype._onMouseMove = function _onMouseMove() {
+    AccessibilityManager.prototype._onMouseMove = function _onMouseMove(e) {
+        if (e.movementX === 0 && e.movementY === 0) {
+            return;
+        }
+
         this.deactivate();
     };
 
@@ -4405,7 +4538,7 @@ var AccessibilityManager = function () {
             this.children[i].div = null;
         }
 
-        window.document.removeEventListener('mousemove', this._onMouseMove);
+        window.document.removeEventListener('mousemove', this._onMouseMove, true);
         window.removeEventListener('keydown', this._onKeyDown);
 
         this.pool = null;
@@ -4671,8 +4804,16 @@ var Application = function () {
     /**
      * Destroy and don't use after this.
      * @param {Boolean} [removeView=false] Automatically remove canvas from DOM.
+     * @param {object|boolean} [stageOptions] - Options parameter. A boolean will act as if all options
+     *  have been set to that value
+     * @param {boolean} [stageOptions.children=false] - if set to true, all the children will have their destroy
+     *  method called as well. 'stageOptions' will be passed on to those calls.
+     * @param {boolean} [stageOptions.texture=false] - Only used for child Sprites if stageOptions.children is set
+     *  to true. Should it destroy the texture of the child sprite
+     * @param {boolean} [stageOptions.baseTexture=false] - Only used for child Sprites if stageOptions.children is set
+     *  to true. Should it destroy the base texture of the child sprite
      */
-    Application.prototype.destroy = function destroy(removeView) {
+    Application.prototype.destroy = function destroy(removeView, stageOptions) {
         if (this._ticker) {
             var oldTicker = this._ticker;
 
@@ -4680,7 +4821,7 @@ var Application = function () {
             oldTicker.destroy();
         }
 
-        this.stage.destroy();
+        this.stage.destroy(stageOptions);
         this.stage = null;
 
         this.renderer.destroy(removeView);
@@ -4878,7 +5019,7 @@ exports.__esModule = true;
  * @name VERSION
  * @type {string}
  */
-var VERSION = exports.VERSION = '4.7.3';
+var VERSION = exports.VERSION = '4.8.2';
 
 /**
  * Two Pi.
@@ -5098,7 +5239,7 @@ var URL_FILE_EXTENSION = exports.URL_FILE_EXTENSION = /\.(\w{3,4})(?:$|\?|#)/i;
  * @type {RegExp|string}
  * @example data:image/png;base64
  */
-var DATA_URI = exports.DATA_URI = /^\s*data:(?:([\w-]+)\/([\w+.-]+))?(?:;(charset=[\w-]+|base64))?,(.*)/i;
+var DATA_URI = exports.DATA_URI = /^\s*data:(?:([\w-]+)\/([\w+.-]+))?(?:;charset=([\w-]+))?(?:;(base64))?,(.*)/i;
 
 /**
  * Regexp for SVG size.
@@ -6732,7 +6873,7 @@ var DisplayObject = function (_EventEmitter) {
         }
 
         /**
-         * The pivot point of the displayObject that it rotates around
+         * The pivot point of the displayObject that it rotates around.
          * Assignment by value since pixi-v4.
          *
          * @member {PIXI.Point|PIXI.ObservablePoint}
@@ -6925,7 +7066,7 @@ var Transform = function (_TransformBase) {
     _this.skew = new _math.ObservablePoint(_this.updateSkew, _this, 0, 0);
 
     /**
-     * The pivot point of the displayObject that it rotates around
+     * The pivot point of the displayObject that it rotates around.
      *
      * @member {PIXI.Point}
      */
@@ -7185,7 +7326,7 @@ var TransformStatic = function (_TransformBase) {
         _this.scale = new _math.ObservablePoint(_this.onChange, _this, 1, 1);
 
         /**
-         * The pivot point of the displayObject that it rotates around
+         * The pivot point of the displayObject that it rotates around.
          *
          * @member {PIXI.ObservablePoint}
          */
@@ -7453,6 +7594,14 @@ var Graphics = function (_Container) {
         _this.lineColor = 0;
 
         /**
+         * The alignment of any lines drawn (0.5 = middle, 1 = outter, 0 = inner).
+         *
+         * @member {number}
+         * @default 0
+         */
+        _this.lineAlignment = 0.5;
+
+        /**
          * Graphics data
          *
          * @member {PIXI.GraphicsData[]}
@@ -7566,6 +7715,9 @@ var Graphics = function (_Container) {
         _this._spriteRect = null;
         _this._fastRect = false;
 
+        _this._prevRectTint = null;
+        _this._prevRectFillColor = null;
+
         /**
          * When cacheAsBitmap is set to true the graphics object will be rendered as if it was a sprite.
          * This is useful if your graphics element does not change often, as it will speed up the rendering
@@ -7596,6 +7748,7 @@ var Graphics = function (_Container) {
         clone.fillAlpha = this.fillAlpha;
         clone.lineWidth = this.lineWidth;
         clone.lineColor = this.lineColor;
+        clone.lineAlignment = this.lineAlignment;
         clone.tint = this.tint;
         clone.blendMode = this.blendMode;
         clone.isMask = this.isMask;
@@ -7616,12 +7769,123 @@ var Graphics = function (_Container) {
     };
 
     /**
+     * Calculate length of quadratic curve
+     * @see {@link http://www.malczak.linuxpl.com/blog/quadratic-bezier-curve-length/}
+     * for the detailed explanation of math behind this.
+     *
+     * @private
+     * @param {number} fromX - x-coordinate of curve start point
+     * @param {number} fromY - y-coordinate of curve start point
+     * @param {number} cpX - x-coordinate of curve control point
+     * @param {number} cpY - y-coordinate of curve control point
+     * @param {number} toX - x-coordinate of curve end point
+     * @param {number} toY - y-coordinate of curve end point
+     * @return {number} Length of quadratic curve
+     */
+
+
+    Graphics.prototype._quadraticCurveLength = function _quadraticCurveLength(fromX, fromY, cpX, cpY, toX, toY) {
+        var ax = fromX - (2.0 * cpX + toX);
+        var ay = fromY - (2.0 * cpY + toY);
+        var bx = 2.0 * ((cpX - 2.0) * fromX);
+        var by = 2.0 * ((cpY - 2.0) * fromY);
+        var a = 4.0 * (ax * ax + ay * ay);
+        var b = 4.0 * (ax * bx + ay * by);
+        var c = bx * bx + by * by;
+
+        var s = 2.0 * Math.sqrt(a + b + c);
+        var a2 = Math.sqrt(a);
+        var a32 = 2.0 * a * a2;
+        var c2 = 2.0 * Math.sqrt(c);
+        var ba = b / a2;
+
+        return (a32 * s + a2 * b * (s - c2) + (4.0 * c * a - b * b) * Math.log((2.0 * a2 + ba + s) / (ba + c2))) / (4.0 * a32);
+    };
+
+    /**
+     * Calculate length of bezier curve.
+     * Analytical solution is impossible, since it involves an integral that does not integrate in general.
+     * Therefore numerical solution is used.
+     *
+     * @private
+     * @param {number} fromX - Starting point x
+     * @param {number} fromY - Starting point y
+     * @param {number} cpX - Control point x
+     * @param {number} cpY - Control point y
+     * @param {number} cpX2 - Second Control point x
+     * @param {number} cpY2 - Second Control point y
+     * @param {number} toX - Destination point x
+     * @param {number} toY - Destination point y
+     * @return {number} Length of bezier curve
+     */
+
+
+    Graphics.prototype._bezierCurveLength = function _bezierCurveLength(fromX, fromY, cpX, cpY, cpX2, cpY2, toX, toY) {
+        var n = 10;
+        var result = 0.0;
+        var t = 0.0;
+        var t2 = 0.0;
+        var t3 = 0.0;
+        var nt = 0.0;
+        var nt2 = 0.0;
+        var nt3 = 0.0;
+        var x = 0.0;
+        var y = 0.0;
+        var dx = 0.0;
+        var dy = 0.0;
+        var prevX = fromX;
+        var prevY = fromY;
+
+        for (var i = 1; i <= n; ++i) {
+            t = i / n;
+            t2 = t * t;
+            t3 = t2 * t;
+            nt = 1.0 - t;
+            nt2 = nt * nt;
+            nt3 = nt2 * nt;
+
+            x = nt3 * fromX + 3.0 * nt2 * t * cpX + 3.0 * nt * t2 * cpX2 + t3 * toX;
+            y = nt3 * fromY + 3.0 * nt2 * t * cpY + 3 * nt * t2 * cpY2 + t3 * toY;
+            dx = prevX - x;
+            dy = prevY - y;
+            prevX = x;
+            prevY = y;
+
+            result += Math.sqrt(dx * dx + dy * dy);
+        }
+
+        return result;
+    };
+
+    /**
+     * Calculate number of segments for the curve based on its length to ensure its smoothness.
+     *
+     * @private
+     * @param {number} length - length of curve
+     * @return {number} Number of segments
+     */
+
+
+    Graphics.prototype._segmentsCount = function _segmentsCount(length) {
+        var result = Math.ceil(length / Graphics.CURVES.maxLength);
+
+        if (result < Graphics.CURVES.minSegments) {
+            result = Graphics.CURVES.minSegments;
+        } else if (result > Graphics.CURVES.maxSegments) {
+            result = Graphics.CURVES.maxSegments;
+        }
+
+        return result;
+    };
+
+    /**
      * Specifies the line style used for subsequent calls to Graphics methods such as the lineTo()
      * method or the drawCircle() method.
      *
      * @param {number} [lineWidth=0] - width of the line to draw, will update the objects stored style
      * @param {number} [color=0] - color of the line to draw, will update the objects stored style
      * @param {number} [alpha=1] - alpha of the line to draw, will update the objects stored style
+     * @param {number} [alignment=0.5] - alignment of the line to draw, (0 = inner, 0.5 = middle, 1 = outter)
      * @return {PIXI.Graphics} This Graphics object. Good for chaining method calls
      */
 
@@ -7630,10 +7894,12 @@ var Graphics = function (_Container) {
         var lineWidth = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 0;
         var color = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
         var alpha = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 1;
+        var alignment = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : 0.5;
 
         this.lineWidth = lineWidth;
         this.lineColor = color;
         this.lineAlpha = alpha;
+        this.lineAlignment = alignment;
 
         if (this.currentPath) {
             if (this.currentPath.shape.points.length) {
@@ -7648,6 +7914,7 @@ var Graphics = function (_Container) {
                 this.currentPath.lineWidth = this.lineWidth;
                 this.currentPath.lineColor = this.lineColor;
                 this.currentPath.lineAlpha = this.lineAlpha;
+                this.currentPath.lineAlignment = this.lineAlignment;
             }
         }
 
@@ -7683,8 +7950,15 @@ var Graphics = function (_Container) {
 
 
     Graphics.prototype.lineTo = function lineTo(x, y) {
-        this.currentPath.shape.points.push(x, y);
-        this.dirty++;
+        var points = this.currentPath.shape.points;
+
+        var fromX = points[points.length - 2];
+        var fromY = points[points.length - 1];
+
+        if (fromX !== x || fromY !== y) {
+            points.push(x, y);
+            this.dirty++;
+        }
 
         return this;
     };
@@ -7710,7 +7984,6 @@ var Graphics = function (_Container) {
             this.moveTo(0, 0);
         }
 
-        var n = 20;
         var points = this.currentPath.shape.points;
         var xa = 0;
         var ya = 0;
@@ -7721,6 +7994,7 @@ var Graphics = function (_Container) {
 
         var fromX = points[points.length - 2];
         var fromY = points[points.length - 1];
+        var n = Graphics.CURVES.adaptive ? this._segmentsCount(this._quadraticCurveLength(fromX, fromY, cpX, cpY, toX, toY)) : 20;
 
         for (var i = 1; i <= n; ++i) {
             var j = i / n;
@@ -7765,7 +8039,9 @@ var Graphics = function (_Container) {
 
         points.length -= 2;
 
-        (0, _bezierCurveTo3.default)(fromX, fromY, cpX, cpY, cpX2, cpY2, toX, toY, points);
+        var n = Graphics.CURVES.adaptive ? this._segmentsCount(this._bezierCurveLength(fromX, fromY, cpX, cpY, cpX2, cpY2, toX, toY)) : 20;
+
+        (0, _bezierCurveTo3.default)(fromX, fromY, cpX, cpY, cpX2, cpY2, toX, toY, n, points);
 
         this.dirty++;
 
@@ -7863,7 +8139,7 @@ var Graphics = function (_Container) {
         }
 
         var sweep = endAngle - startAngle;
-        var segs = Math.ceil(Math.abs(sweep) / _const.PI_2) * 40;
+        var segs = Graphics.CURVES.adaptive ? this._segmentsCount(Math.abs(sweep) * radius) : Math.ceil(Math.abs(sweep) / _const.PI_2) * 40;
 
         if (sweep === 0) {
             return this;
@@ -7876,7 +8152,14 @@ var Graphics = function (_Container) {
         var points = this.currentPath ? this.currentPath.shape.points : null;
 
         if (points) {
-            if (points[points.length - 2] !== startX || points[points.length - 1] !== startY) {
+            // We check how far our start is from the last existing point
+            var xDiff = Math.abs(points[points.length - 2] - startX);
+            var yDiff = Math.abs(points[points.length - 1] - startY);
+
+            if (xDiff < 0.001 && yDiff < 0.001) {
+                // If the point is very close, we don't add it, since this would lead to artifacts
+                // during tesselation due to floating point imprecision.
+            } else {
                 points.push(startX, startY);
             }
         } else {
@@ -8102,9 +8385,12 @@ var Graphics = function (_Container) {
     Graphics.prototype.clear = function clear() {
         if (this.lineWidth || this.filling || this.graphicsData.length > 0) {
             this.lineWidth = 0;
+            this.lineAlignment = 0.5;
+
             this.filling = false;
 
             this.boundsDirty = -1;
+            this.canvasTintDirty = -1;
             this.dirty++;
             this.clearDirty++;
             this.graphicsData.length = 0;
@@ -8168,14 +8454,15 @@ var Graphics = function (_Container) {
         }
 
         var sprite = this._spriteRect;
+        var fillColor = this.graphicsData[0].fillColor;
 
         if (this.tint === 0xffffff) {
-            sprite.tint = this.graphicsData[0].fillColor;
-        } else {
+            sprite.tint = fillColor;
+        } else if (this.tint !== this._prevRectTint || fillColor !== this._prevRectFillColor) {
             var t1 = tempColor1;
             var t2 = tempColor2;
 
-            (0, _utils.hex2rgb)(this.graphicsData[0].fillColor, t1);
+            (0, _utils.hex2rgb)(fillColor, t1);
             (0, _utils.hex2rgb)(this.tint, t2);
 
             t1[0] *= t2[0];
@@ -8183,7 +8470,11 @@ var Graphics = function (_Container) {
             t1[2] *= t2[2];
 
             sprite.tint = (0, _utils.rgb2hex)(t1);
+
+            this._prevRectTint = this.tint;
+            this._prevRectFillColor = fillColor;
         }
+
         sprite.alpha = this.graphicsData[0].fillAlpha;
         sprite.worldAlpha = this.worldAlpha * sprite.alpha;
         sprite.blendMode = this.blendMode;
@@ -8409,12 +8700,12 @@ var Graphics = function (_Container) {
 
         this.currentPath = null;
 
-        var data = new _GraphicsData2.default(this.lineWidth, this.lineColor, this.lineAlpha, this.fillColor, this.fillAlpha, this.filling, this.nativeLines, shape);
+        var data = new _GraphicsData2.default(this.lineWidth, this.lineColor, this.lineAlpha, this.fillColor, this.fillAlpha, this.filling, this.nativeLines, shape, this.lineAlignment);
 
         this.graphicsData.push(data);
 
         if (data.type === _const.SHAPES.POLY) {
-            data.shape.closed = data.shape.closed || this.filling;
+            data.shape.closed = data.shape.closed;
             this.currentPath = data;
         }
 
@@ -8521,9 +8812,9 @@ var Graphics = function (_Container) {
         }
 
         // for each webgl data entry, destroy the WebGLGraphicsData
-        for (var id in this._webgl) {
-            for (var j = 0; j < this._webgl[id].data.length; ++j) {
-                this._webgl[id].data[j].destroy();
+        for (var id in this._webGL) {
+            for (var j = 0; j < this._webGL[id].data.length; ++j) {
+                this._webGL[id].data[j].destroy();
             }
         }
 
@@ -8534,7 +8825,7 @@ var Graphics = function (_Container) {
         this.graphicsData = null;
 
         this.currentPath = null;
-        this._webgl = null;
+        this._webGL = null;
         this._localBounds = null;
     };
 
@@ -8545,6 +8836,28 @@ exports.default = Graphics;
 
 
 Graphics._SPRITE_TEXTURE = null;
+
+/**
+ * Graphics curves resolution settings. If `adaptive` flag is set to `true`,
+ * the resolution is calculated based on the curve's length to ensure better visual quality.
+ * Adaptive draw works with `bezierCurveTo` and `quadraticCurveTo`.
+ *
+ * @static
+ * @constant
+ * @memberof PIXI.Graphics
+ * @name CURVES
+ * @type {object}
+ * @property {boolean} adaptive=false - flag indicating if the resolution should be adaptive
+ * @property {number} maxLength=10 - maximal length of a single segment of the curve (if adaptive = false, ignored)
+ * @property {number} minSegments=8 - minimal number of segments in the curve (if adaptive = false, ignored)
+ * @property {number} maxSegments=2048 - maximal number of segments in the curve (if adaptive = false, ignored)
+ */
+Graphics.CURVES = {
+    adaptive: false,
+    maxLength: 10,
+    minSegments: 8,
+    maxSegments: 2048
+};
 
 },{"../const":42,"../display/Bounds":43,"../display/Container":44,"../math":66,"../renderers/canvas/CanvasRenderer":73,"../sprites/Sprite":98,"../textures/RenderTexture":109,"../textures/Texture":111,"../utils":121,"./GraphicsData":50,"./utils/bezierCurveTo":52}],50:[function(require,module,exports){
 "use strict";
@@ -8570,8 +8883,9 @@ var GraphicsData = function () {
    * @param {boolean} fill - whether or not the shape is filled with a colour
    * @param {boolean} nativeLines - the method for drawing lines
    * @param {PIXI.Circle|PIXI.Rectangle|PIXI.Ellipse|PIXI.Polygon} shape - The shape object to draw.
+   * @param {number} lineAlignment - the alignment of the line.
    */
-  function GraphicsData(lineWidth, lineColor, lineAlpha, fillColor, fillAlpha, fill, nativeLines, shape) {
+  function GraphicsData(lineWidth, lineColor, lineAlpha, fillColor, fillAlpha, fill, nativeLines, shape, lineAlignment) {
     _classCallCheck(this, GraphicsData);
 
     /**
@@ -8579,6 +8893,14 @@ var GraphicsData = function () {
      * @member {number}
      */
     this.lineWidth = lineWidth;
+
+    /**
+     * The alignment of any lines drawn (0.5 = middle, 1 = outter, 0 = inner).
+     *
+     * @member {number}
+     * @default 0
+     */
+    this.lineAlignment = lineAlignment;
 
     /**
      * if true the liens will be draw using LINES instead of TRIANGLE_STRIP
@@ -8740,16 +9062,11 @@ var CanvasGraphicsRenderer = function () {
         var transform = graphics.transform.worldTransform;
         var resolution = renderer.resolution;
 
-        // if the tint has changed, set the graphics object to dirty.
-        if (this._prevTint !== this.tint) {
-            this.dirty = true;
-        }
-
         context.setTransform(transform.a * resolution, transform.b * resolution, transform.c * resolution, transform.d * resolution, transform.tx * resolution, transform.ty * resolution);
 
-        if (graphics.dirty) {
+        // update tint if graphics was dirty
+        if (graphics.canvasTintDirty !== graphics.dirty || graphics._prevTint !== graphics.tint) {
             this.updateGraphicsTint(graphics);
-            graphics.dirty = false;
         }
 
         renderer.setBlendMode(graphics.blendMode);
@@ -8894,6 +9211,7 @@ var CanvasGraphicsRenderer = function () {
 
     CanvasGraphicsRenderer.prototype.updateGraphicsTint = function updateGraphicsTint(graphics) {
         graphics._prevTint = graphics.tint;
+        graphics.canvasTintDirty = graphics.dirty;
 
         var tintR = (graphics.tint >> 16 & 0xFF) / 255;
         var tintG = (graphics.tint >> 8 & 0xFF) / 255;
@@ -8905,7 +9223,7 @@ var CanvasGraphicsRenderer = function () {
             var fillColor = data.fillColor | 0;
             var lineColor = data.lineColor | 0;
 
-            // super inline cos im an optimization NAZI :)
+            // super inline, cos optimization :)
             data._fillTint = ((fillColor >> 16 & 0xFF) / 255 * tintR * 255 << 16) + ((fillColor >> 8 & 0xFF) / 255 * tintG * 255 << 8) + (fillColor & 0xFF) / 255 * tintB * 255;
 
             data._lineTint = ((lineColor >> 16 & 0xFF) / 255 * tintR * 255 << 16) + ((lineColor >> 8 & 0xFF) / 255 * tintG * 255 << 8) + (lineColor & 0xFF) / 255 * tintB * 255;
@@ -8970,13 +9288,13 @@ exports.default = bezierCurveTo;
  * @param {number} cpY2 - Second Control point y
  * @param {number} toX - Destination point x
  * @param {number} toY - Destination point y
+ * @param {number} n - Number of segments approximating the bezier curve
  * @param {number[]} [path=[]] - Path array to push points into
  * @return {number[]} Array of points of the curve
  */
-function bezierCurveTo(fromX, fromY, cpX, cpY, cpX2, cpY2, toX, toY) {
-    var path = arguments.length > 8 && arguments[8] !== undefined ? arguments[8] : [];
+function bezierCurveTo(fromX, fromY, cpX, cpY, cpX2, cpY2, toX, toY, n) {
+    var path = arguments.length > 9 && arguments[9] !== undefined ? arguments[9] : [];
 
-    var n = 20;
     var dt = 0;
     var dt2 = 0;
     var dt3 = 0;
@@ -9537,9 +9855,11 @@ function buildCircle(graphicsData, webGLData, webGLDataNativeLines) {
 
         graphicsData.points = [];
 
-        for (var _i = 0; _i < totalSegs + 1; _i++) {
-            graphicsData.points.push(x + Math.sin(seg * _i) * width, y + Math.cos(seg * _i) * height);
+        for (var _i = 0; _i < totalSegs; _i++) {
+            graphicsData.points.push(x + Math.sin(seg * -_i) * width, y + Math.cos(seg * -_i) * height);
         }
+
+        graphicsData.points.push(graphicsData.points[0], graphicsData.points[1]);
 
         (0, _buildLine2.default)(graphicsData, webGLData, webGLDataNativeLines);
 
@@ -9649,10 +9969,14 @@ function buildLine(graphicsData, webGLData) {
     perpx *= width;
     perpy *= width;
 
-    // start
-    verts.push(p1x - perpx, p1y - perpy, r, g, b, alpha);
+    var ratio = graphicsData.lineAlignment; // 0.5;
+    var r1 = (1 - ratio) * 2;
+    var r2 = ratio * 2;
 
-    verts.push(p1x + perpx, p1y + perpy, r, g, b, alpha);
+    // start
+    verts.push(p1x - perpx * r1, p1y - perpy * r1, r, g, b, alpha);
+
+    verts.push(p1x + perpx * r2, p1y + perpy * r2, r, g, b, alpha);
 
     for (var i = 1; i < length - 1; ++i) {
         p1x = points[(i - 1) * 2];
@@ -9693,9 +10017,9 @@ function buildLine(graphicsData, webGLData) {
 
         if (Math.abs(denom) < 0.1) {
             denom += 10.1;
-            verts.push(p2x - perpx, p2y - perpy, r, g, b, alpha);
+            verts.push(p2x - perpx * r1, p2y - perpy * r1, r, g, b, alpha);
 
-            verts.push(p2x + perpx, p2y + perpy, r, g, b, alpha);
+            verts.push(p2x + perpx * r2, p2y + perpy * r2, r, g, b, alpha);
 
             continue;
         }
@@ -9714,21 +10038,21 @@ function buildLine(graphicsData, webGLData) {
             perp3x *= width;
             perp3y *= width;
 
-            verts.push(p2x - perp3x, p2y - perp3y);
+            verts.push(p2x - perp3x * r1, p2y - perp3y * r1);
             verts.push(r, g, b, alpha);
 
-            verts.push(p2x + perp3x, p2y + perp3y);
+            verts.push(p2x + perp3x * r2, p2y + perp3y * r2);
             verts.push(r, g, b, alpha);
 
-            verts.push(p2x - perp3x, p2y - perp3y);
+            verts.push(p2x - perp3x * r2 * r1, p2y - perp3y * r1);
             verts.push(r, g, b, alpha);
 
             indexCount++;
         } else {
-            verts.push(px, py);
+            verts.push(p2x + (px - p2x) * r1, p2y + (py - p2y) * r1);
             verts.push(r, g, b, alpha);
 
-            verts.push(p2x - (px - p2x), p2y - (py - p2y));
+            verts.push(p2x - (px - p2x) * r2, p2y - (py - p2y) * r2);
             verts.push(r, g, b, alpha);
         }
     }
@@ -9748,10 +10072,10 @@ function buildLine(graphicsData, webGLData) {
     perpx *= width;
     perpy *= width;
 
-    verts.push(p2x - perpx, p2y - perpy);
+    verts.push(p2x - perpx * r1, p2y - perpy * r1);
     verts.push(r, g, b, alpha);
 
-    verts.push(p2x + perpx, p2y + perpy);
+    verts.push(p2x + perpx * r2, p2y + perpy * r2);
     verts.push(r, g, b, alpha);
 
     indices.push(indexStart);
@@ -11274,6 +11598,28 @@ var ObservablePoint = function () {
     }
 
     /**
+     * Creates a clone of this point.
+     * The callback and scope params can be overidden otherwise they will default
+     * to the clone object's values.
+     *
+     * @override
+     * @param {Function} [cb=null] - callback when changed
+     * @param {object} [scope=null] - owner of callback
+     * @return {PIXI.ObservablePoint} a copy of the point
+     */
+
+
+    ObservablePoint.prototype.clone = function clone() {
+        var cb = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : null;
+        var scope = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : null;
+
+        var _cb = cb || this.cb;
+        var _scope = scope || this.scope;
+
+        return new ObservablePoint(_cb, _scope, this._x, this._y);
+    };
+
+    /**
      * Sets the point to a new x and y position.
      * If y is omitted, both x and y will be set to x.
      *
@@ -11306,6 +11652,18 @@ var ObservablePoint = function () {
             this._y = point.y;
             this.cb.call(this.scope);
         }
+    };
+
+    /**
+     * Returns true if the given point is equal to this point
+     *
+     * @param {PIXI.Point|PIXI.ObservablePoint} p - The point to check
+     * @returns {boolean} Whether the given point equal to this point
+     */
+
+
+    ObservablePoint.prototype.equals = function equals(p) {
+        return p.x === this._x && p.y === this._y;
     };
 
     /**
@@ -12570,7 +12928,7 @@ var SystemRenderer = function (_EventEmitter) {
     tempMatrix.tx = -region.x;
     tempMatrix.ty = -region.y;
 
-    this.render(displayObject, renderTexture, false, tempMatrix, true);
+    this.render(displayObject, renderTexture, false, tempMatrix, !!displayObject.parent);
 
     return renderTexture;
   };
@@ -12813,7 +13171,7 @@ var CanvasRenderer = function (_SystemRenderer) {
      * @param {PIXI.RenderTexture} [renderTexture] - A render texture to be rendered to.
      *  If unset, it will render to the root context.
      * @param {boolean} [clear=false] - Whether to clear the canvas before drawing
-     * @param {PIXI.Transform} [transform] - A transformation to be applied
+     * @param {PIXI.Matrix} [transform] - A transformation to be applied
      * @param {boolean} [skipUpdateTransform=false] - Whether to skip the update transform
      */
 
@@ -13937,7 +14295,7 @@ var WebGLRenderer = function (_SystemRenderer) {
      * @param {number} [options.backgroundColor=0x000000] - The background color of the rendered area
      *  (shown if not transparent).
      * @param {boolean} [options.legacy=false] - If true PixiJS will aim to ensure compatibility
-     *  with older / less advanced devices. If you experiance unexplained flickering try setting this to true.
+     *  with older / less advanced devices. If you experience unexplained flickering try setting this to true.
      * @param {string} [options.powerPreference] - Parameter passed to webgl context, set to "high-performance"
      *  for devices with dual graphics card
      */
@@ -14156,7 +14514,7 @@ var WebGLRenderer = function (_SystemRenderer) {
 
         this.emit('context', gl);
 
-        // start the width/height properties and gl viewport
+        // setup the width/height properties and gl viewport
         this.resize(this.screen.width, this.screen.height);
     };
 
@@ -14166,7 +14524,7 @@ var WebGLRenderer = function (_SystemRenderer) {
      * @param {PIXI.DisplayObject} displayObject - the object to be rendered
      * @param {PIXI.RenderTexture} renderTexture - The render texture to render to.
      * @param {boolean} [clear] - Should the canvas be cleared before the new render
-     * @param {PIXI.Transform} [transform] - A transform to apply to the render texture before rendering.
+     * @param {PIXI.Matrix} [transform] - A transform to apply to the render texture before rendering.
      * @param {boolean} [skipUpdateTransform] - Should we skip the update transform pass?
      */
 
@@ -14327,7 +14685,7 @@ var WebGLRenderer = function (_SystemRenderer) {
      * Binds a render texture for rendering
      *
      * @param {PIXI.RenderTexture} renderTexture - The render texture to render
-     * @param {PIXI.Transform} transform - The transform to be applied to the render texture
+     * @param {PIXI.Matrix} transform - The transform to be applied to the render texture
      * @return {PIXI.WebGLRenderer} Returns itself.
      */
 
@@ -15003,7 +15361,7 @@ var Filter = function () {
     // TODO we could cache this!
     this.glShaders = {};
 
-    // used for cacheing.. sure there is a better way!
+    // used for caching.. sure there is a better way!
     if (!SOURCE_KEY_MAP[this.vertexSrc + this.fragmentSrc]) {
       SOURCE_KEY_MAP[this.vertexSrc + this.fragmentSrc] = (0, _utils.uid)();
     }
@@ -15375,20 +15733,37 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
  * @ignore
  * @class
  */
-var FilterState =
-/**
- *
- */
-function FilterState() {
-    _classCallCheck(this, FilterState);
+var FilterState = function () {
+    /**
+     *
+     */
+    function FilterState() {
+        _classCallCheck(this, FilterState);
 
-    this.renderTarget = null;
-    this.sourceFrame = new _math.Rectangle();
-    this.destinationFrame = new _math.Rectangle();
-    this.filters = [];
-    this.target = null;
-    this.resolution = 1;
-};
+        this.renderTarget = null;
+        this.target = null;
+        this.resolution = 1;
+
+        // those three objects are used only for root
+        // re-assigned for everything else
+        this.sourceFrame = new _math.Rectangle();
+        this.destinationFrame = new _math.Rectangle();
+        this.filters = [];
+    }
+
+    /**
+     * clears the state
+     */
+
+
+    FilterState.prototype.clear = function clear() {
+        this.filters = null;
+        this.target = null;
+        this.renderTarget = null;
+    };
+
+    return FilterState;
+}();
 
 var screenKey = 'screen';
 
@@ -15560,6 +15935,7 @@ var FilterManager = function (_WebGLManager) {
             this.freePotRenderTarget(flop);
         }
 
+        currentState.clear();
         filterData.index--;
 
         if (filterData.index === 0) {
@@ -15583,7 +15959,7 @@ var FilterManager = function (_WebGLManager) {
 
         var shader = filter.glShaders[renderer.CONTEXT_UID];
 
-        // cacheing..
+        // caching..
         if (!shader) {
             if (filter.glShaderKey) {
                 shader = this.shaderCache[filter.glShaderKey];
@@ -15688,7 +16064,7 @@ var FilterManager = function (_WebGLManager) {
             shader.uniforms.filterClamp = filterClamp;
         }
 
-        // TODO Cacheing layer..
+        // TODO Caching layer..
         for (var i in uniformData) {
             var type = uniformData[i].type;
 
@@ -15849,7 +16225,7 @@ var FilterManager = function (_WebGLManager) {
     /**
      * Gets a Power-of-Two render texture.
      *
-     * TODO move to a seperate class could be on renderer?
+     * TODO move to a separate class could be on renderer?
      * also - could cause issue with multiple contexts?
      *
      * @private
@@ -15899,6 +16275,7 @@ var FilterManager = function (_WebGLManager) {
         renderTarget.resolution = resolution;
         renderTarget.defaultFrame.width = renderTarget.size.width = minWidth / resolution;
         renderTarget.defaultFrame.height = renderTarget.size.height = minHeight / resolution;
+        renderTarget.filterPoolKey = key;
 
         return renderTarget;
     };
@@ -15931,16 +16308,7 @@ var FilterManager = function (_WebGLManager) {
 
 
     FilterManager.prototype.freePotRenderTarget = function freePotRenderTarget(renderTarget) {
-        var minWidth = renderTarget.size.width * renderTarget.resolution;
-        var minHeight = renderTarget.size.height * renderTarget.resolution;
-
-        var key = screenKey;
-
-        if (minWidth !== this._screenWidth || minHeight !== this._screenHeight) {
-            key = (minWidth & 0xFFFF) << 16 | minHeight & 0xFFFF;
-        }
-
-        this.pool[key].push(renderTarget);
+        this.pool[renderTarget.filterPoolKey].push(renderTarget);
     };
 
     /**
@@ -15970,7 +16338,7 @@ var FilterManager = function (_WebGLManager) {
 
 exports.default = FilterManager;
 
-},{"../../../Shader":40,"../../../math":66,"../filters/filterTransforms":84,"../utils/Quad":91,"../utils/RenderTarget":92,"./WebGLManager":89,"bit-twiddle":5}],87:[function(require,module,exports){
+},{"../../../Shader":40,"../../../math":66,"../filters/filterTransforms":84,"../utils/Quad":91,"../utils/RenderTarget":92,"./WebGLManager":89,"bit-twiddle":4}],87:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -16257,7 +16625,7 @@ var StencilManager = function (_WebGLManager) {
 
         this.stencilMaskStack.push(graphics);
 
-        // Increment the refference stencil value where the new mask overlaps with the old ones.
+        // Increment the reference stencil value where the new mask overlaps with the old ones.
         gl.colorMask(false, false, false, false);
         gl.stencilFunc(gl.EQUAL, prevMaskCount, this._getBitwiseMask());
         gl.stencilOp(gl.KEEP, gl.KEEP, gl.INCR);
@@ -16283,7 +16651,7 @@ var StencilManager = function (_WebGLManager) {
             gl.clear(gl.STENCIL_BUFFER_BIT);
             gl.clearStencil(0);
         } else {
-            // Decrement the refference stencil value where the popped mask overlaps with the other ones
+            // Decrement the reference stencil value where the popped mask overlaps with the other ones
             gl.colorMask(false, false, false, false);
             gl.stencilOp(gl.KEEP, gl.KEEP, gl.DECR);
             this.renderer.plugins.graphics.render(graphics);
@@ -16781,6 +17149,13 @@ var RenderTarget = function () {
     this.filterData = null;
 
     /**
+     * The key for pooled texture of FilterSystem
+     * @private
+     * @member {string}
+     */
+    this.filterPoolKey = '';
+
+    /**
      * The scale mode.
      *
      * @member {number}
@@ -16872,7 +17247,7 @@ var RenderTarget = function () {
 
 
   RenderTarget.prototype.activate = function activate() {
-    // TOOD refactor usage of frame..
+    // TODO refactor usage of frame..
     var gl = this.gl;
 
     // make sure the texture is unbound!
@@ -17431,6 +17806,18 @@ var tempPoint = new _math.Point();
  * let sprite = new PIXI.Sprite.fromImage('assets/image.png');
  * ```
  *
+ * The more efficient way to create sprites is using a {@link PIXI.Spritesheet}:
+ *
+ * ```js
+ * PIXI.loader.add("assets/spritesheet.json").load(setup);
+ *
+ * function setup() {
+ *   let sheet = PIXI.loader.resources["assets/spritesheet.json"].spritesheet;
+ *   let sprite = new PIXI.Sprite(sheet.textures["image.png"]);
+ *   ...
+ * }
+ * ```
+ *
  * @class
  * @extends PIXI.Container
  * @memberof PIXI
@@ -17447,16 +17834,19 @@ var Sprite = function (_Container) {
 
         /**
          * The anchor sets the origin point of the texture.
-         * The default is 0,0 this means the texture's origin is the top left
-         * Setting the anchor to 0.5,0.5 means the texture's origin is centered
-         * Setting the anchor to 1,1 would mean the texture's origin point will be the bottom right corner
+         * The default is 0,0 or taken from the {@link PIXI.Texture#defaultAnchor|Texture}
+         * passed to the constructor. A value of 0,0 means the texture's origin is the top left.
+         * Setting the anchor to 0.5,0.5 means the texture's origin is centered.
+         * Setting the anchor to 1,1 would mean the texture's origin point will be the bottom right corner.
+         * Note: Updating the {@link PIXI.Texture#defaultAnchor} after a Texture is
+         * created does _not_ update the Sprite's anchor values.
          *
          * @member {PIXI.ObservablePoint}
          * @private
          */
         var _this = _possibleConstructorReturn(this, _Container.call(this));
 
-        _this._anchor = new _math.ObservablePoint(_this._onAnchorUpdate, _this);
+        _this._anchor = new _math.ObservablePoint(_this._onAnchorUpdate, _this, texture ? texture.defaultAnchor.x : 0, texture ? texture.defaultAnchor.y : 0);
 
         /**
          * The texture that the sprite is using
@@ -17831,6 +18221,8 @@ var Sprite = function (_Container) {
     Sprite.prototype.destroy = function destroy(options) {
         _Container.prototype.destroy.call(this, options);
 
+        this._texture.off('update', this._onTextureUpdate, this);
+
         this._anchor = null;
 
         var destroyTexture = typeof options === 'boolean' ? options : options && options.texture;
@@ -17939,9 +18331,10 @@ var Sprite = function (_Container) {
 
         /**
          * The anchor sets the origin point of the texture.
-         * The default is 0,0 this means the texture's origin is the top left
-         * Setting the anchor to 0.5,0.5 means the texture's origin is centered
-         * Setting the anchor to 1,1 would mean the texture's origin point will be the bottom right corner
+         * The default is 0,0 or taken from the {@link PIXI.Texture|Texture} passed to the constructor.
+         * Setting the texture at a later point of time does not change the anchor.
+         *
+         * 0,0 means the texture's origin is the top left, 0.5,0.5 is the center, 1,1 the bottom right corner.
          *
          * @member {PIXI.ObservablePoint}
          */
@@ -17992,7 +18385,7 @@ var Sprite = function (_Container) {
                 return;
             }
 
-            this._texture = value;
+            this._texture = value || _Texture2.default.EMPTY;
             this.cachedTint = 0xFFFFFF;
 
             this._textureID = -1;
@@ -18764,6 +19157,8 @@ var SpriteRenderer = function (_ObjectRenderer) {
             // they have all ready been calculated so we just need to push them into the buffer.
             var sprite = sprites[i];
 
+            sprites[i] = null;
+
             nextTexture = sprite._texture.baseTexture;
 
             var spriteBlendMode = _utils.premultiplyBlendMode[Number(nextTexture.premultipliedAlpha)][sprite.blendMode];
@@ -19022,7 +19417,7 @@ exports.default = SpriteRenderer;
 
 _WebGLRenderer2.default.registerPlugin('sprite', SpriteRenderer);
 
-},{"../../renderers/webgl/WebGLRenderer":80,"../../renderers/webgl/utils/ObjectRenderer":90,"../../renderers/webgl/utils/checkMaxIfStatmentsInShader":93,"../../settings":97,"../../utils":121,"../../utils/createIndicesForQuads":119,"./BatchBuffer":101,"./generateMultiTextureShader":103,"bit-twiddle":5,"pixi-gl-core":25}],103:[function(require,module,exports){
+},{"../../renderers/webgl/WebGLRenderer":80,"../../renderers/webgl/utils/ObjectRenderer":90,"../../renderers/webgl/utils/checkMaxIfStatmentsInShader":93,"../../settings":97,"../../utils":121,"../../utils/createIndicesForQuads":119,"./BatchBuffer":101,"./generateMultiTextureShader":103,"bit-twiddle":4,"pixi-gl-core":25}],103:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -19141,7 +19536,8 @@ var defaultDestroyOptions = {
  * A Text Object will create a line or multiple lines of text. To split a line you can use '\n' in your text string,
  * or add a wordWrap property set to true and and wordWrapWidth property with a value in the style object.
  *
- * A Text can be created directly from a string and a style object
+ * A Text can be created directly from a string and a style object,
+ * which can be generated [here](https://pixijs.io/pixi-text-style).
  *
  * ```js
  * let text = new PIXI.Text('This is a PixiJS text',{fontFamily : 'Arial', fontSize: 24, fill : 0xff1010, align : 'center'});
@@ -19408,9 +19804,11 @@ var Text = function (_Sprite) {
         if (this._style.trim) {
             var trimmed = (0, _trimCanvas2.default)(canvas);
 
-            canvas.width = trimmed.width;
-            canvas.height = trimmed.height;
-            this.context.putImageData(trimmed.data, 0, 0);
+            if (trimmed.data) {
+                canvas.width = trimmed.width;
+                canvas.height = trimmed.height;
+                this.context.putImageData(trimmed.data, 0, 0);
+            }
         }
 
         var texture = this._texture;
@@ -19798,7 +20196,7 @@ var TextMetrics = function () {
     TextMetrics.measureText = function measureText(text, style, wordWrap) {
         var canvas = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : TextMetrics._canvas;
 
-        wordWrap = wordWrap || style.wordWrap;
+        wordWrap = wordWrap === undefined || wordWrap === null ? style.wordWrap : wordWrap;
         var font = style.toFontString();
         var fontProperties = TextMetrics.measureFont(font);
         var context = canvas.getContext('2d');
@@ -19849,54 +20247,116 @@ var TextMetrics = function () {
 
         var context = canvas.getContext('2d');
 
-        var line = '';
         var width = 0;
+        var line = '';
         var lines = '';
-        var cache = {};
-        var ls = style.letterSpacing;
 
-        // ideally there is letterSpacing after every char except the last one
+        var cache = {};
+        var letterSpacing = style.letterSpacing,
+            whiteSpace = style.whiteSpace;
+
+        // How to handle whitespaces
+
+        var collapseSpaces = TextMetrics.collapseSpaces(whiteSpace);
+        var collapseNewlines = TextMetrics.collapseNewlines(whiteSpace);
+
+        // whether or not spaces may be added to the beginning of lines
+        var canPrependSpaces = !collapseSpaces;
+
+        // There is letterSpacing after every char except the last one
         // t_h_i_s_' '_i_s_' '_a_n_' '_e_x_a_m_p_l_e_' '_!
-        // so for convenience the above needs to be compared to width + 1 extra space
+        // so for convenience the above needs to be compared to width + 1 extra letterSpace
         // t_h_i_s_' '_i_s_' '_a_n_' '_e_x_a_m_p_l_e_' '_!_
         // ________________________________________________
         // And then the final space is simply no appended to each line
-        var wordWrapWidth = style.wordWrapWidth + style.letterSpacing;
+        var wordWrapWidth = style.wordWrapWidth + letterSpacing;
 
-        // get the width of a space and add it to cache
-        var spaceWidth = TextMetrics.getFromCache(' ', ls, cache, context);
+        // break text into words, spaces and newline chars
+        var tokens = TextMetrics.tokenize(text);
 
-        // break text into words
-        var words = text.split(' ');
+        for (var i = 0; i < tokens.length; i++) {
+            // get the word, space or newlineChar
+            var token = tokens[i];
 
-        for (var i = 0; i < words.length; i++) {
-            var word = words[i];
+            // if word is a new line
+            if (TextMetrics.isNewline(token)) {
+                // keep the new line
+                if (!collapseNewlines) {
+                    lines += TextMetrics.addLine(line);
+                    canPrependSpaces = !collapseSpaces;
+                    line = '';
+                    width = 0;
+                    continue;
+                }
+
+                // if we should collapse new lines
+                // we simply convert it into a space
+                token = ' ';
+            }
+
+            // if we should collapse repeated whitespaces
+            if (collapseSpaces) {
+                // check both this and the last tokens for spaces
+                var currIsBreakingSpace = TextMetrics.isBreakingSpace(token);
+                var lastIsBreakingSpace = TextMetrics.isBreakingSpace(line[line.length - 1]);
+
+                if (currIsBreakingSpace && lastIsBreakingSpace) {
+                    continue;
+                }
+            }
 
             // get word width from cache if possible
-            var wordWidth = TextMetrics.getFromCache(word, ls, cache, context);
+            var tokenWidth = TextMetrics.getFromCache(token, letterSpacing, cache, context);
 
             // word is longer than desired bounds
-            if (wordWidth > wordWrapWidth) {
-                // break large word over multiple lines
-                if (style.breakWords) {
-                    // add a space to the start of the word unless its at the beginning of the line
-                    var tmpWord = line.length > 0 ? ' ' + word : word;
+            if (tokenWidth > wordWrapWidth) {
+                // if we are not already at the beginning of a line
+                if (line !== '') {
+                    // start newlines for overflow words
+                    lines += TextMetrics.addLine(line);
+                    line = '';
+                    width = 0;
+                }
 
+                // break large word over multiple lines
+                if (TextMetrics.canBreakWords(token, style.breakWords)) {
                     // break word into characters
-                    var characters = tmpWord.split('');
+                    var characters = token.split('');
 
                     // loop the characters
                     for (var j = 0; j < characters.length; j++) {
-                        var character = characters[j];
-                        var characterWidth = TextMetrics.getFromCache(character, ls, cache, context);
+                        var char = characters[j];
+
+                        var k = 1;
+                        // we are not at the end of the token
+
+                        while (characters[j + k]) {
+                            var nextChar = characters[j + k];
+                            var lastChar = char[char.length - 1];
+
+                            // should not split chars
+                            if (!TextMetrics.canBreakChars(lastChar, nextChar, token, j, style.breakWords)) {
+                                // combine chars & move forward one
+                                char += nextChar;
+                            } else {
+                                break;
+                            }
+
+                            k++;
+                        }
+
+                        j += char.length - 1;
+
+                        var characterWidth = TextMetrics.getFromCache(char, letterSpacing, cache, context);
 
                         if (characterWidth + width > wordWrapWidth) {
                             lines += TextMetrics.addLine(line);
+                            canPrependSpaces = false;
                             line = '';
                             width = 0;
                         }
 
-                        line += character;
+                        line += char;
                         width += characterWidth;
                     }
                 }
@@ -19911,8 +20371,11 @@ var TextMetrics = function () {
                             width = 0;
                         }
 
-                        // give it its own line
-                        lines += TextMetrics.addLine(word);
+                        var isLastToken = i === tokens.length - 1;
+
+                        // give it its own line if it's not the end
+                        lines += TextMetrics.addLine(token, !isLastToken);
+                        canPrependSpaces = false;
                         line = '';
                         width = 0;
                     }
@@ -19920,23 +20383,28 @@ var TextMetrics = function () {
 
             // word could fit
             else {
-                    // word won't fit, start a new line
-                    if (wordWidth + width > wordWrapWidth) {
+                    // word won't fit because of existing words
+                    // start a new line
+                    if (tokenWidth + width > wordWrapWidth) {
+                        // if its a space we don't want it
+                        canPrependSpaces = false;
+
+                        // add a new line
                         lines += TextMetrics.addLine(line);
+
+                        // start a new line
                         line = '';
                         width = 0;
                     }
 
-                    // add the word to the current line
-                    if (line.length > 0) {
-                        // add a space if it is not the beginning
-                        line += ' ' + word;
-                    } else {
-                        // add without a space if it is the beginning
-                        line += word;
-                    }
+                    // don't add spaces to the beginning of lines
+                    if (line.length > 0 || !TextMetrics.isBreakingSpace(token) || canPrependSpaces) {
+                        // add the word to the current line
+                        line += token;
 
-                    width += wordWidth + spaceWidth;
+                        // update width counter
+                        width += tokenWidth;
+                    }
                 }
         }
 
@@ -19946,17 +20414,20 @@ var TextMetrics = function () {
     };
 
     /**
-     *  Convienience function for logging each line added
-     *  during the wordWrap method
+     * Convienience function for logging each line added during the wordWrap
+     * method
      *
-     * @param  {string}   line    - The line of text to add
-     * @param  {boolean}  newLine - Add new line character to end
+     * @private
+     * @param  {string}   line        - The line of text to add
+     * @param  {boolean}  newLine     - Add new line character to end
      * @return {string}   A formatted line
      */
 
 
     TextMetrics.addLine = function addLine(line) {
         var newLine = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : true;
+
+        line = TextMetrics.trimRight(line);
 
         line = newLine ? line + '\n' : line;
 
@@ -19966,6 +20437,7 @@ var TextMetrics = function () {
     /**
      * Gets & sets the widths of calculated characters in a cache object
      *
+     * @private
      * @param  {string}                    key            The key
      * @param  {number}                    letterSpacing  The letter spacing
      * @param  {object}                    cache          The cache
@@ -19985,6 +20457,173 @@ var TextMetrics = function () {
         }
 
         return width;
+    };
+
+    /**
+     * Determines whether we should collapse breaking spaces
+     *
+     * @private
+     * @param  {string}   whiteSpace  The TextStyle property whiteSpace
+     * @return {boolean}  should collapse
+     */
+
+
+    TextMetrics.collapseSpaces = function collapseSpaces(whiteSpace) {
+        return whiteSpace === 'normal' || whiteSpace === 'pre-line';
+    };
+
+    /**
+     * Determines whether we should collapse newLine chars
+     *
+     * @private
+     * @param  {string}   whiteSpace  The white space
+     * @return {boolean}  should collapse
+     */
+
+
+    TextMetrics.collapseNewlines = function collapseNewlines(whiteSpace) {
+        return whiteSpace === 'normal';
+    };
+
+    /**
+     * trims breaking whitespaces from string
+     *
+     * @private
+     * @param  {string}  text  The text
+     * @return {string}  trimmed string
+     */
+
+
+    TextMetrics.trimRight = function trimRight(text) {
+        if (typeof text !== 'string') {
+            return '';
+        }
+
+        for (var i = text.length - 1; i >= 0; i--) {
+            var char = text[i];
+
+            if (!TextMetrics.isBreakingSpace(char)) {
+                break;
+            }
+
+            text = text.slice(0, -1);
+        }
+
+        return text;
+    };
+
+    /**
+     * Determines if char is a newline.
+     *
+     * @private
+     * @param  {string}  char  The character
+     * @return {boolean}  True if newline, False otherwise.
+     */
+
+
+    TextMetrics.isNewline = function isNewline(char) {
+        if (typeof char !== 'string') {
+            return false;
+        }
+
+        return TextMetrics._newlines.indexOf(char.charCodeAt(0)) >= 0;
+    };
+
+    /**
+     * Determines if char is a breaking whitespace.
+     *
+     * @private
+     * @param  {string}  char  The character
+     * @return {boolean}  True if whitespace, False otherwise.
+     */
+
+
+    TextMetrics.isBreakingSpace = function isBreakingSpace(char) {
+        if (typeof char !== 'string') {
+            return false;
+        }
+
+        return TextMetrics._breakingSpaces.indexOf(char.charCodeAt(0)) >= 0;
+    };
+
+    /**
+     * Splits a string into words, breaking-spaces and newLine characters
+     *
+     * @private
+     * @param  {string}  text       The text
+     * @return {array}  A tokenized array
+     */
+
+
+    TextMetrics.tokenize = function tokenize(text) {
+        var tokens = [];
+        var token = '';
+
+        if (typeof text !== 'string') {
+            return tokens;
+        }
+
+        for (var i = 0; i < text.length; i++) {
+            var char = text[i];
+
+            if (TextMetrics.isBreakingSpace(char) || TextMetrics.isNewline(char)) {
+                if (token !== '') {
+                    tokens.push(token);
+                    token = '';
+                }
+
+                tokens.push(char);
+
+                continue;
+            }
+
+            token += char;
+        }
+
+        if (token !== '') {
+            tokens.push(token);
+        }
+
+        return tokens;
+    };
+
+    /**
+     * This method exists to be easily overridden
+     * It allows one to customise which words should break
+     * Examples are if the token is CJK or numbers.
+     * It must return a boolean.
+     *
+     * @private
+     * @param  {string}  token       The token
+     * @param  {boolean}  breakWords  The style attr break words
+     * @return {boolean} whether to break word or not
+     */
+
+
+    TextMetrics.canBreakWords = function canBreakWords(token, breakWords) {
+        return breakWords;
+    };
+
+    /**
+     * This method exists to be easily overridden
+     * It allows one to determine whether a pair of characters
+     * should be broken by newlines
+     * For example certain characters in CJK langs or numbers.
+     * It must return a boolean.
+     *
+     * @private
+     * @param  {string}  char      The character
+     * @param  {string}  nextChar  The next character
+     * @param  {string}  token     The token/word the characters are from
+     * @param  {number}  index     The index in the token of the char
+     * @param  {boolean}  breakWords  The style attr break words
+     * @return {boolean} whether to break word or not
+     */
+
+
+    TextMetrics.canBreakChars = function canBreakChars(char, nextChar, token, index, breakWords) // eslint-disable-line no-unused-vars
+    {
+        return true;
     };
 
     /**
@@ -20009,11 +20648,12 @@ var TextMetrics = function () {
 
         context.font = font;
 
-        var width = Math.ceil(context.measureText('|MÉq').width);
-        var baseline = Math.ceil(context.measureText('M').width);
+        var metricsString = TextMetrics.METRICS_STRING + TextMetrics.BASELINE_SYMBOL;
+        var width = Math.ceil(context.measureText(metricsString).width);
+        var baseline = Math.ceil(context.measureText(TextMetrics.BASELINE_SYMBOL).width);
         var height = 2 * baseline;
 
-        baseline = baseline * 1.4 | 0;
+        baseline = baseline * TextMetrics.BASELINE_MULTIPLIER | 0;
 
         canvas.width = width;
         canvas.height = height;
@@ -20025,7 +20665,7 @@ var TextMetrics = function () {
 
         context.textBaseline = 'alphabetic';
         context.fillStyle = '#000';
-        context.fillText('|MÉq', 0, baseline);
+        context.fillText(metricsString, 0, baseline);
 
         var imagedata = context.getImageData(0, 0, width, height).data;
         var pixels = imagedata.length;
@@ -20079,6 +20719,24 @@ var TextMetrics = function () {
         return properties;
     };
 
+    /**
+     * Clear font metrics in metrics cache.
+     *
+     * @static
+     * @param {string} [font] - font name. If font name not set then clear cache for all fonts.
+     */
+
+
+    TextMetrics.clearMetrics = function clearMetrics() {
+        var font = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : '';
+
+        if (font) {
+            delete TextMetrics._fonts[font];
+        } else {
+            TextMetrics._fonts = {};
+        }
+    };
+
     return TextMetrics;
 }();
 
@@ -20120,6 +20778,66 @@ TextMetrics._context = canvas.getContext('2d');
  */
 TextMetrics._fonts = {};
 
+/**
+ * String used for calculate font metrics.
+ * @static
+ * @memberof PIXI.TextMetrics
+ * @name METRICS_STRING
+ * @type {string}
+ * @default |Éq
+ */
+TextMetrics.METRICS_STRING = '|Éq';
+
+/**
+ * Baseline symbol for calculate font metrics.
+ * @static
+ * @memberof PIXI.TextMetrics
+ * @name BASELINE_SYMBOL
+ * @type {string}
+ * @default M
+ */
+TextMetrics.BASELINE_SYMBOL = 'M';
+
+/**
+ * Baseline multiplier for calculate font metrics.
+ * @static
+ * @memberof PIXI.TextMetrics
+ * @name BASELINE_MULTIPLIER
+ * @type {number}
+ * @default 1.4
+ */
+TextMetrics.BASELINE_MULTIPLIER = 1.4;
+
+/**
+ * Cache of new line chars.
+ * @memberof PIXI.TextMetrics
+ * @type {number[]}
+ * @private
+ */
+TextMetrics._newlines = [0x000A, // line feed
+0x000D];
+
+/**
+ * Cache of breaking spaces.
+ * @memberof PIXI.TextMetrics
+ * @type {number[]}
+ * @private
+ */
+TextMetrics._breakingSpaces = [0x0009, // character tabulation
+0x0020, // space
+0x2000, // en quad
+0x2001, // em quad
+0x2002, // en space
+0x2003, // em space
+0x2004, // three-per-em space
+0x2005, // four-per-em space
+0x2006, // six-per-em space
+0x2008, // punctuation space
+0x2009, // thin space
+0x200A, // hair space
+0x205F, // medium mathematical space
+0x3000];
+
 },{}],106:[function(require,module,exports){
 'use strict';
 
@@ -20160,14 +20878,18 @@ var defaultStyle = {
     strokeThickness: 0,
     textBaseline: 'alphabetic',
     trim: false,
+    whiteSpace: 'pre',
     wordWrap: false,
     wordWrapWidth: 100,
     leading: 0
 };
 
+var genericFontFamilies = ['serif', 'sans-serif', 'monospace', 'cursive', 'fantasy', 'system-ui'];
+
 /**
  * A TextStyle Object decorates a Text Object. It can be shared between
  * multiple Text objects. Changing the style will update all text objects using it.
+ * It can be generated [here](https://pixijs.io/pixi-text-style).
  *
  * @class
  * @memberof PIXI
@@ -20217,6 +20939,8 @@ var TextStyle = function () {
      *  Default is 0 (no stroke)
      * @param {boolean} [style.trim=false] - Trim transparent borders
      * @param {string} [style.textBaseline='alphabetic'] - The baseline of the text that is rendered.
+     * @param {boolean} [style.whiteSpace='pre'] - Determines whether newlines & spaces are collapsed or preserved "normal"
+     *      (collapse, collapse), "pre" (preserve, preserve) | "pre-line" (preserve, collapse). It needs wordWrap to be set to true
      * @param {boolean} [style.wordWrap=false] - Indicates if word wrap should be used
      * @param {number} [style.wordWrapWidth=100] - The width at which text will wrap, it needs wordWrap to be set to true
      */
@@ -20283,8 +21007,8 @@ var TextStyle = function () {
             // Trim any extra white-space
             var fontFamily = fontFamilies[i].trim();
 
-            // Check if font already contains strings
-            if (!/([\"\'])[^\'\"]+\1/.test(fontFamily)) {
+            // Check if font is already escaped in quotes except for CSS generic fonts
+            if (!/([\"\'])[^\'\"]+\1/.test(fontFamily) && genericFontFamilies.indexOf(fontFamily) < 0) {
                 fontFamily = '"' + fontFamily + '"';
             }
             fontFamilies[i] = fontFamily;
@@ -20793,6 +21517,32 @@ var TextStyle = function () {
         {
             if (this._trim !== trim) {
                 this._trim = trim;
+                this.styleID++;
+            }
+        }
+
+        /**
+         * How newlines and spaces should be handled.
+         * Default is 'pre' (preserve, preserve).
+         *
+         *  value       | New lines     |   Spaces
+         *  ---         | ---           |   ---
+         * 'normal'     | Collapse      |   Collapse
+         * 'pre'        | Preserve      |   Preserve
+         * 'pre-line'   | Preserve      |   Collapse
+         *
+         * @member {string}
+         */
+
+    }, {
+        key: 'whiteSpace',
+        get: function get() {
+            return this._whiteSpace;
+        },
+        set: function set(whiteSpace) // eslint-disable-line require-jsdoc
+        {
+            if (this._whiteSpace !== whiteSpace) {
+                this._whiteSpace = whiteSpace;
                 this.styleID++;
             }
         }
@@ -21432,7 +22182,7 @@ var BaseTexture = function (_EventEmitter) {
 
         this.source = source;
 
-        // Apply source if loaded. Otherwise start appropriate loading monitors.
+        // Apply source if loaded. Otherwise setup appropriate loading monitors.
         if ((source.src && source.complete || source.getContext) && source.width && source.height) {
             this._updateImageType();
 
@@ -21930,7 +22680,7 @@ var BaseTexture = function (_EventEmitter) {
 
 exports.default = BaseTexture;
 
-},{"../settings":97,"../utils":121,"../utils/determineCrossOrigin":120,"bit-twiddle":5,"eventemitter3":7}],109:[function(require,module,exports){
+},{"../settings":97,"../utils":121,"../utils/determineCrossOrigin":120,"bit-twiddle":4,"eventemitter3":7}],109:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -22101,6 +22851,23 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
  * Utility class for maintaining reference to a collection
  * of Textures on a single Spritesheet.
  *
+ * To access a sprite sheet from your code pass its JSON data file to Pixi's loader:
+ *
+ * ```js
+ * PIXI.loader.add("images/spritesheet.json").load(setup);
+ *
+ * function setup() {
+ *   let sheet = PIXI.loader.resources["images/spritesheet.json"].spritesheet;
+ *   ...
+ * }
+ * ```
+ * With the `sheet.textures` you can create Sprite objects,`sheet.animations` can be used to create an AnimatedSprite.
+ *
+ * Sprite sheets can be packed using tools like {@link https://codeandweb.com/texturepacker|TexturePacker},
+ * {@link https://renderhjs.net/shoebox/|Shoebox} or {@link https://github.com/krzysztof-o/spritesheet.js|Spritesheet.js}.
+ * Default anchor points (see {@link PIXI.Texture#defaultAnchor}) and grouping of animation sprites are currently only
+ * supported by TexturePacker.
+ *
  * @class
  * @memberof PIXI
  */
@@ -22140,10 +22907,24 @@ var Spritesheet = function () {
         this.baseTexture = baseTexture;
 
         /**
-         * Map of spritesheet textures.
-         * @type {Object}
+         * A map containing all textures of the sprite sheet.
+         * Can be used to create a {@link PIXI.Sprite|Sprite}:
+         * ```js
+         * new PIXI.Sprite(sheet.textures["image.png"]);
+         * ```
+         * @member {Object}
          */
         this.textures = {};
+
+        /**
+         * A map containing the textures for each animation.
+         * Can be used to create an {@link PIXI.extras.AnimatedSprite|AnimatedSprite}:
+         * ```js
+         * new PIXI.extras.AnimatedSprite(sheet.animations["anim_name"])
+         * ```
+         * @member {Object}
+         */
+        this.animations = {};
 
         /**
          * Reference to the original JSON data.
@@ -22233,6 +23014,7 @@ var Spritesheet = function () {
 
         if (this._frameKeys.length <= Spritesheet.BATCH_SIZE) {
             this._processFrames(0);
+            this._processAnimations();
             this._parseComplete();
         } else {
             this._nextBatch();
@@ -22275,13 +23057,44 @@ var Spritesheet = function () {
                     trim = new _.Rectangle(Math.floor(data.spriteSourceSize.x * sourceScale) / this.resolution, Math.floor(data.spriteSourceSize.y * sourceScale) / this.resolution, Math.floor(rect.w * sourceScale) / this.resolution, Math.floor(rect.h * sourceScale) / this.resolution);
                 }
 
-                this.textures[i] = new _.Texture(this.baseTexture, frame, orig, trim, data.rotated ? 2 : 0);
+                this.textures[i] = new _.Texture(this.baseTexture, frame, orig, trim, data.rotated ? 2 : 0, data.anchor);
 
                 // lets also add the frame to pixi's global cache for fromFrame and fromImage functions
                 _.Texture.addToCache(this.textures[i], i);
             }
 
             frameIndex++;
+        }
+    };
+
+    /**
+     * Parse animations config
+     *
+     * @private
+     */
+
+
+    Spritesheet.prototype._processAnimations = function _processAnimations() {
+        var animations = this.data.animations || {};
+
+        for (var animName in animations) {
+            this.animations[animName] = [];
+            for (var _iterator = animations[animName], _isArray = Array.isArray(_iterator), _i = 0, _iterator = _isArray ? _iterator : _iterator[Symbol.iterator]();;) {
+                var _ref;
+
+                if (_isArray) {
+                    if (_i >= _iterator.length) break;
+                    _ref = _iterator[_i++];
+                } else {
+                    _i = _iterator.next();
+                    if (_i.done) break;
+                    _ref = _i.value;
+                }
+
+                var frameName = _ref;
+
+                this.animations[animName].push(this.textures[frameName]);
+            }
         }
     };
 
@@ -22316,6 +23129,7 @@ var Spritesheet = function () {
             if (_this._batchIndex * Spritesheet.BATCH_SIZE < _this._frameKeys.length) {
                 _this._nextBatch();
             } else {
+                _this._processAnimations();
                 _this._parseComplete();
             }
         }, 0);
@@ -22423,8 +23237,9 @@ var Texture = function (_EventEmitter) {
      * @param {PIXI.Rectangle} [orig] - The area of original texture
      * @param {PIXI.Rectangle} [trim] - Trimmed rectangle of original texture
      * @param {number} [rotate] - indicates how the texture was rotated by texture packer. See {@link PIXI.GroupD8}
+     * @param {PIXI.Point} [anchor] - Default anchor point used for sprite placement / rotation
      */
-    function Texture(baseTexture, frame, orig, trim, rotate) {
+    function Texture(baseTexture, frame, orig, trim, rotate, anchor) {
         _classCallCheck(this, Texture);
 
         /**
@@ -22519,6 +23334,14 @@ var Texture = function (_EventEmitter) {
         }
 
         /**
+         * Anchor point that is used as default if sprite is created with this texture.
+         * Changing the `defaultAnchor` at a later point of time will not update Sprite's anchor point.
+         * @member {PIXI.Point}
+         * @default {0,0}
+         */
+        _this.defaultAnchor = anchor ? new _math.Point(anchor.x, anchor.y) : new _math.Point(0, 0);
+
+        /**
          * Fired when the texture is updated. This happens if the frame or the baseTexture is updated.
          *
          * @event PIXI.Texture#update
@@ -22531,7 +23354,7 @@ var Texture = function (_EventEmitter) {
         /**
          * Contains data for uvs. May contain clamp settings and some matrices.
          * Its a bit heavy, so by default that object is not created.
-         * @type {PIXI.TextureMatrix}
+         * @member {PIXI.TextureMatrix}
          * @default null
          */
         _this.transform = null;
@@ -23641,6 +24464,7 @@ VideoBaseTexture.fromUrls = VideoBaseTexture.fromUrl;
 
 function createSource(path, type) {
     if (!type) {
+        path = path.split('?').shift().toLowerCase();
         type = 'video/' + path.substr(path.lastIndexOf('.') + 1);
     }
 
@@ -24285,7 +25109,7 @@ var TickerListener = function () {
         }
 
         // Redirect to the next item
-        var redirect = this.previous;
+        var redirect = this.next;
 
         // Remove references
         this.next = hard ? null : redirect;
@@ -24677,8 +25501,9 @@ function decomposeDataUri(dataUri) {
         return {
             mediaType: dataUriMatch[1] ? dataUriMatch[1].toLowerCase() : undefined,
             subType: dataUriMatch[2] ? dataUriMatch[2].toLowerCase() : undefined,
-            encoding: dataUriMatch[3] ? dataUriMatch[3].toLowerCase() : undefined,
-            data: dataUriMatch[4]
+            charset: dataUriMatch[3] ? dataUriMatch[3].toLowerCase() : undefined,
+            encoding: dataUriMatch[4] ? dataUriMatch[4].toLowerCase() : undefined,
+            data: dataUriMatch[5]
         };
     }
 
@@ -25189,6 +26014,7 @@ function trimCanvas(canvas) {
         right: null,
         bottom: null
     };
+    var data = null;
     var i = void 0;
     var x = void 0;
     var y = void 0;
@@ -25222,10 +26048,11 @@ function trimCanvas(canvas) {
         }
     }
 
-    width = bound.right - bound.left;
-    height = bound.bottom - bound.top + 1;
-
-    var data = context.getImageData(bound.left, bound.top, width, height);
+    if (bound.top !== null) {
+        width = bound.right - bound.left;
+        height = bound.bottom - bound.top + 1;
+        data = context.getImageData(bound.left, bound.top, width, height);
+    }
 
     return {
         height: height,
@@ -26502,7 +27329,7 @@ var CanvasExtract = function () {
         var width = frame.width * resolution;
         var height = frame.height * resolution;
 
-        var canvasBuffer = new core.CanvasRenderTarget(width, height);
+        var canvasBuffer = new core.CanvasRenderTarget(width, height, 1);
         var canvasData = context.getImageData(frame.x * resolution, frame.y * resolution, width, height);
 
         canvasBuffer.context.putImageData(canvasData, 0, 0);
@@ -26714,7 +27541,7 @@ var WebGLExtract = function () {
         var width = frame.width * resolution;
         var height = frame.height * resolution;
 
-        var canvasBuffer = new core.CanvasRenderTarget(width, height);
+        var canvasBuffer = new core.CanvasRenderTarget(width, height, 1);
 
         if (textureBuffer) {
             // bind the buffer
@@ -26869,7 +27696,20 @@ function _inherits(subClass, superClass) { if (typeof superClass !== "function" 
  *      textureArray.push(texture);
  * };
  *
- * let mc = new PIXI.AnimatedSprite(textureArray);
+ * let animatedSprite = new PIXI.extras.AnimatedSprite(textureArray);
+ * ```
+ *
+ * The more efficient and simpler way to create an animated sprite is using a {@link PIXI.Spritesheet}
+ * containing the animation definitions:
+ *
+ * ```js
+ * PIXI.loader.add("assets/spritesheet.json").load(setup);
+ *
+ * function setup() {
+ *   let sheet = PIXI.loader.resources["assets/spritesheet.json"].spritesheet;
+ *   animatedSprite = new PIXI.extras.AnimatedSprite(sheet.animations["image_sequence"]);
+ *   ...
+ * }
  * ```
  *
  * @class
@@ -27382,6 +28222,13 @@ var BitmapText = function (_core$Container) {
         _this._maxLineHeight = 0;
 
         /**
+         * Letter spacing. This is useful for setting the space between characters.
+         * @member {number}
+         * @private
+         */
+        _this._letterSpacing = 0;
+
+        /**
          * Text anchor. read-only
          *
          * @member {PIXI.ObservablePoint}
@@ -27415,44 +28262,33 @@ var BitmapText = function (_core$Container) {
         var pos = new core.Point();
         var chars = [];
         var lineWidths = [];
+        var text = this.text.replace(/(?:\r\n|\r)/g, '\n');
+        var textLength = text.length;
+        var maxWidth = this._maxWidth * data.size / this._font.size;
 
         var prevCharCode = null;
         var lastLineWidth = 0;
         var maxLineWidth = 0;
         var line = 0;
-        var lastSpace = -1;
-        var lastSpaceWidth = 0;
+        var lastBreakPos = -1;
+        var lastBreakWidth = 0;
         var spacesRemoved = 0;
         var maxLineHeight = 0;
 
-        for (var i = 0; i < this.text.length; i++) {
-            var charCode = this.text.charCodeAt(i);
+        for (var i = 0; i < textLength; i++) {
+            var charCode = text.charCodeAt(i);
+            var char = text.charAt(i);
 
-            if (/(\s)/.test(this.text.charAt(i))) {
-                lastSpace = i;
-                lastSpaceWidth = lastLineWidth;
+            if (/(?:\s)/.test(char)) {
+                lastBreakPos = i;
+                lastBreakWidth = lastLineWidth;
             }
 
-            if (/(?:\r\n|\r|\n)/.test(this.text.charAt(i))) {
+            if (char === '\r' || char === '\n') {
                 lineWidths.push(lastLineWidth);
                 maxLineWidth = Math.max(maxLineWidth, lastLineWidth);
-                line++;
-
-                pos.x = 0;
-                pos.y += data.lineHeight;
-                prevCharCode = null;
-                continue;
-            }
-
-            if (lastSpace !== -1 && this._maxWidth > 0 && pos.x * scale > this._maxWidth) {
-                core.utils.removeItems(chars, lastSpace - spacesRemoved, i - lastSpace);
-                i = lastSpace;
-                lastSpace = -1;
+                ++line;
                 ++spacesRemoved;
-
-                lineWidths.push(lastSpaceWidth);
-                maxLineWidth = Math.max(maxLineWidth, lastSpaceWidth);
-                line++;
 
                 pos.x = 0;
                 pos.y += data.lineHeight;
@@ -27474,16 +28310,39 @@ var BitmapText = function (_core$Container) {
                 texture: charData.texture,
                 line: line,
                 charCode: charCode,
-                position: new core.Point(pos.x + charData.xOffset, pos.y + charData.yOffset)
+                position: new core.Point(pos.x + charData.xOffset + this._letterSpacing / 2, pos.y + charData.yOffset)
             });
-            lastLineWidth = pos.x + (charData.texture.width + charData.xOffset);
-            pos.x += charData.xAdvance;
+            pos.x += charData.xAdvance + this._letterSpacing;
+            lastLineWidth = pos.x;
             maxLineHeight = Math.max(maxLineHeight, charData.yOffset + charData.texture.height);
             prevCharCode = charCode;
+
+            if (lastBreakPos !== -1 && maxWidth > 0 && pos.x > maxWidth) {
+                ++spacesRemoved;
+                core.utils.removeItems(chars, 1 + lastBreakPos - spacesRemoved, 1 + i - lastBreakPos);
+                i = lastBreakPos;
+                lastBreakPos = -1;
+
+                lineWidths.push(lastBreakWidth);
+                maxLineWidth = Math.max(maxLineWidth, lastBreakWidth);
+                line++;
+
+                pos.x = 0;
+                pos.y += data.lineHeight;
+                prevCharCode = null;
+            }
         }
 
-        lineWidths.push(lastLineWidth);
-        maxLineWidth = Math.max(maxLineWidth, lastLineWidth);
+        var lastChar = text.charAt(text.length - 1);
+
+        if (lastChar !== '\r' && lastChar !== '\n') {
+            if (/(?:\s)/.test(lastChar)) {
+                lastLineWidth = lastBreakWidth;
+            }
+
+            lineWidths.push(lastLineWidth);
+            maxLineWidth = Math.max(maxLineWidth, lastLineWidth);
+        }
 
         var lineAlignOffsets = [];
 
@@ -27591,45 +28450,61 @@ var BitmapText = function (_core$Container) {
      *
      * @static
      * @param {XMLDocument} xml - The XML document data.
-     * @param {PIXI.Texture} texture - Texture with all symbols.
+     * @param {Object.<string, PIXI.Texture>|PIXI.Texture|PIXI.Texture[]} textures - List of textures for each page.
+     *  If providing an object, the key is the `<page>` element's `file` attribute in the FNT file.
      * @return {Object} Result font object with font, size, lineHeight and char fields.
      */
-    BitmapText.registerFont = function registerFont(xml, texture) {
+    BitmapText.registerFont = function registerFont(xml, textures) {
         var data = {};
         var info = xml.getElementsByTagName('info')[0];
         var common = xml.getElementsByTagName('common')[0];
-        var fileName = xml.getElementsByTagName('page')[0].getAttribute('file');
-        var res = (0, _utils.getResolutionOfUrl)(fileName, _settings2.default.RESOLUTION);
+        var pages = xml.getElementsByTagName('page');
+        var res = (0, _utils.getResolutionOfUrl)(pages[0].getAttribute('file'), _settings2.default.RESOLUTION);
+        var pagesTextures = {};
 
         data.font = info.getAttribute('face');
         data.size = parseInt(info.getAttribute('size'), 10);
         data.lineHeight = parseInt(common.getAttribute('lineHeight'), 10) / res;
         data.chars = {};
 
+        // Single texture, convert to list
+        if (textures instanceof core.Texture) {
+            textures = [textures];
+        }
+
+        // Convert the input Texture, Textures or object
+        // into a page Texture lookup by "id"
+        for (var i = 0; i < pages.length; i++) {
+            var id = pages[i].getAttribute('id');
+            var file = pages[i].getAttribute('file');
+
+            pagesTextures[id] = textures instanceof Array ? textures[i] : textures[file];
+        }
+
         // parse letters
         var letters = xml.getElementsByTagName('char');
 
-        for (var i = 0; i < letters.length; i++) {
-            var letter = letters[i];
+        for (var _i5 = 0; _i5 < letters.length; _i5++) {
+            var letter = letters[_i5];
             var charCode = parseInt(letter.getAttribute('id'), 10);
-
-            var textureRect = new core.Rectangle(parseInt(letter.getAttribute('x'), 10) / res + texture.frame.x / res, parseInt(letter.getAttribute('y'), 10) / res + texture.frame.y / res, parseInt(letter.getAttribute('width'), 10) / res, parseInt(letter.getAttribute('height'), 10) / res);
+            var page = letter.getAttribute('page') || 0;
+            var textureRect = new core.Rectangle(parseInt(letter.getAttribute('x'), 10) / res + pagesTextures[page].frame.x / res, parseInt(letter.getAttribute('y'), 10) / res + pagesTextures[page].frame.y / res, parseInt(letter.getAttribute('width'), 10) / res, parseInt(letter.getAttribute('height'), 10) / res);
 
             data.chars[charCode] = {
                 xOffset: parseInt(letter.getAttribute('xoffset'), 10) / res,
                 yOffset: parseInt(letter.getAttribute('yoffset'), 10) / res,
                 xAdvance: parseInt(letter.getAttribute('xadvance'), 10) / res,
                 kerning: {},
-                texture: new core.Texture(texture.baseTexture, textureRect)
-
+                texture: new core.Texture(pagesTextures[page].baseTexture, textureRect),
+                page: page
             };
         }
 
         // parse kernings
         var kernings = xml.getElementsByTagName('kerning');
 
-        for (var _i5 = 0; _i5 < kernings.length; _i5++) {
-            var kerning = kernings[_i5];
+        for (var _i6 = 0; _i6 < kernings.length; _i6++) {
+            var kerning = kernings[_i6];
             var first = parseInt(kerning.getAttribute('first'), 10) / res;
             var second = parseInt(kerning.getAttribute('second'), 10) / res;
             var amount = parseInt(kerning.getAttribute('amount'), 10) / res;
@@ -27803,6 +28678,25 @@ var BitmapText = function (_core$Container) {
             this.validate();
 
             return this._textWidth;
+        }
+
+        /**
+         * Additional space between characters.
+         *
+         * @member {number}
+         */
+
+    }, {
+        key: 'letterSpacing',
+        get: function get() {
+            return this._letterSpacing;
+        },
+        set: function set(value) // eslint-disable-line require-jsdoc
+        {
+            if (this._letterSpacing !== value) {
+                this._letterSpacing = value;
+                this.dirty = true;
+            }
         }
 
         /**
@@ -28077,7 +28971,7 @@ var TilingSprite = function (_core$Sprite) {
             this._bounds.minX = this._width * -this._anchor._x;
             this._bounds.minY = this._height * -this._anchor._y;
             this._bounds.maxX = this._width * (1 - this._anchor._x);
-            this._bounds.maxY = this._height * (1 - this._anchor._x);
+            this._bounds.maxY = this._height * (1 - this._anchor._y);
 
             if (!rect) {
                 if (!this._localBoundsRect) {
@@ -31352,6 +32246,9 @@ var InteractionManager = function (_EventEmitter) {
 
         /**
          * Fired when a pointer device button is released over the display object.
+         * Not always fired when some buttons are held down while others are released. In those cases,
+         * use [mousedown]{@link PIXI.interaction.InteractionManager#event:mousedown} and
+         * [mouseup]{@link PIXI.interaction.InteractionManager#event:mouseup} instead.
          *
          * @event PIXI.interaction.InteractionManager#pointerup
          * @param {PIXI.interaction.InteractionEvent} event - Interaction event
@@ -32287,6 +33184,9 @@ var InteractionManager = function (_EventEmitter) {
         var isTouch = data.pointerType === 'touch';
 
         var isMouse = data.pointerType === 'mouse' || data.pointerType === 'pen';
+        // need to track mouse down status in the mouse block so that we can emit
+        // event in a later block
+        var isMouseTap = false;
 
         // Mouse only
         if (isMouse) {
@@ -32303,6 +33203,8 @@ var InteractionManager = function (_EventEmitter) {
 
                 if (isDown) {
                     this.dispatchEvent(displayObject, isRightButton ? 'rightclick' : 'click', interactionEvent);
+                    // because we can confirm that the mousedown happened on this object, flag for later emit of pointertap
+                    isMouseTap = true;
                 }
             } else if (isDown) {
                 this.dispatchEvent(displayObject, isRightButton ? 'rightupoutside' : 'mouseupoutside', interactionEvent);
@@ -32323,7 +33225,10 @@ var InteractionManager = function (_EventEmitter) {
             if (isTouch) this.dispatchEvent(displayObject, 'touchend', interactionEvent);
 
             if (trackingData) {
-                this.dispatchEvent(displayObject, 'pointertap', interactionEvent);
+                // emit pointertap if not a mouse, or if the mouse block decided it was a tap
+                if (!isMouse || isMouseTap) {
+                    this.dispatchEvent(displayObject, 'pointertap', interactionEvent);
+                }
                 if (isTouch) {
                     this.dispatchEvent(displayObject, 'tap', interactionEvent);
                     // touches are no longer over (if they ever were) when we get the touchend
@@ -33129,25 +34034,55 @@ exports.default = function () {
             xmlUrl += '/';
         }
 
-        var textureUrl = xmlUrl + resource.data.getElementsByTagName('page')[0].getAttribute('file');
+        var pages = resource.data.getElementsByTagName('page');
+        var textures = {};
 
-        if (_core.utils.TextureCache[textureUrl]) {
-            // reuse existing texture
-            parse(resource, _core.utils.TextureCache[textureUrl]);
-            next();
-        } else {
-            var loadOptions = {
-                crossOrigin: resource.crossOrigin,
-                loadType: _resourceLoader.Resource.LOAD_TYPE.IMAGE,
-                metadata: resource.metadata.imageMetadata,
-                parentResource: resource
-            };
+        // Handle completed, when the number of textures
+        // load is the same number as references in the fnt file
+        var completed = function completed(page) {
+            textures[page.metadata.pageFile] = page.texture;
 
-            // load the texture for the font
-            this.add(resource.name + '_image', textureUrl, loadOptions, function (res) {
-                parse(resource, res.texture);
+            if (Object.keys(textures).length === pages.length) {
+                parse(resource, textures);
                 next();
-            });
+            }
+        };
+
+        for (var i = 0; i < pages.length; ++i) {
+            var pageFile = pages[i].getAttribute('file');
+            var url = xmlUrl + pageFile;
+            var exists = false;
+
+            // incase the image is loaded outside
+            // using the same loader, resource will be available
+            for (var name in this.resources) {
+                var bitmapResource = this.resources[name];
+
+                if (bitmapResource.url === url) {
+                    bitmapResource.metadata.pageFile = pageFile;
+                    if (bitmapResource.texture) {
+                        completed(bitmapResource);
+                    } else {
+                        bitmapResource.onAfterMiddleware.add(completed);
+                    }
+                    exists = true;
+                    break;
+                }
+            }
+
+            // texture is not loaded, we'll attempt to add
+            // it to the load and add the texture to the list
+            if (!exists) {
+                // Standard loading options for images
+                var options = {
+                    crossOrigin: resource.crossOrigin,
+                    loadType: _resourceLoader.Resource.LOAD_TYPE.IMAGE,
+                    metadata: Object.assign({ pageFile: pageFile }, resource.metadata.imageMetadata),
+                    parentResource: resource
+                };
+
+                this.add(url, options, completed);
+            }
         }
     };
 };
@@ -33155,8 +34090,6 @@ exports.default = function () {
 var _path = require('path');
 
 var path = _interopRequireWildcard(_path);
-
-var _core = require('../core');
 
 var _resourceLoader = require('resource-loader');
 
@@ -33170,13 +34103,13 @@ function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj;
  * @function parseBitmapFontData
  * @memberof PIXI.loaders
  * @param {PIXI.loaders.Resource} resource - Loader resource.
- * @param {PIXI.Texture} texture - Reference to texture.
+ * @param {PIXI.Texture|PIXI.Texture[]} textures - List of textures for each page.
  */
-function parse(resource, texture) {
-    resource.bitmapFont = _extras.BitmapText.registerFont(resource.data, texture);
+function parse(resource, textures) {
+    resource.bitmapFont = _extras.BitmapText.registerFont(resource.data, textures);
 }
 
-},{"../core":61,"../extras":137,"path":12,"resource-loader":196}],159:[function(require,module,exports){
+},{"../extras":137,"path":12,"resource-loader":196}],159:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -33296,12 +34229,12 @@ Object.defineProperty(AppPrototype, 'loader', {
 // Override the destroy function
 // making sure to destroy the current Loader
 AppPrototype._parentDestroy = AppPrototype.destroy;
-AppPrototype.destroy = function destroy(removeView) {
+AppPrototype.destroy = function destroy(removeView, stageOptions) {
     if (this._loader) {
         this._loader.destroy();
         this._loader = null;
     }
-    this._parentDestroy(removeView);
+    this._parentDestroy(removeView, stageOptions);
 };
 
 },{"../core/Application":39,"./bitmapFontParser":158,"./loader":160,"./spritesheetParser":161,"./textureParser":162,"resource-loader":196}],160:[function(require,module,exports){
@@ -33598,320 +34531,382 @@ var tempPolygon = new core.Polygon();
  */
 
 var Mesh = function (_core$Container) {
-  _inherits(Mesh, _core$Container);
-
-  /**
-   * @param {PIXI.Texture} texture - The texture to use
-   * @param {Float32Array} [vertices] - if you want to specify the vertices
-   * @param {Float32Array} [uvs] - if you want to specify the uvs
-   * @param {Uint16Array} [indices] - if you want to specify the indices
-   * @param {number} [drawMode] - the drawMode, can be any of the Mesh.DRAW_MODES consts
-   */
-  function Mesh(texture, vertices, uvs, indices, drawMode) {
-    _classCallCheck(this, Mesh);
+    _inherits(Mesh, _core$Container);
 
     /**
-     * The texture of the Mesh
+     * @param {PIXI.Texture} texture - The texture to use
+     * @param {Float32Array} [vertices] - if you want to specify the vertices
+     * @param {Float32Array} [uvs] - if you want to specify the uvs
+     * @param {Uint16Array} [indices] - if you want to specify the indices
+     * @param {number} [drawMode] - the drawMode, can be any of the Mesh.DRAW_MODES consts
+     */
+    function Mesh(texture, vertices, uvs, indices, drawMode) {
+        _classCallCheck(this, Mesh);
+
+        /**
+         * The texture of the Mesh
+         *
+         * @member {PIXI.Texture}
+         * @default PIXI.Texture.EMPTY
+         * @private
+         */
+        var _this = _possibleConstructorReturn(this, _core$Container.call(this));
+
+        _this._texture = texture || _Texture2.default.EMPTY;
+
+        /**
+         * The Uvs of the Mesh
+         *
+         * @member {Float32Array}
+         */
+        _this.uvs = uvs || new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]);
+
+        /**
+         * An array of vertices
+         *
+         * @member {Float32Array}
+         */
+        _this.vertices = vertices || new Float32Array([0, 0, 100, 0, 100, 100, 0, 100]);
+
+        /**
+         * An array containing the indices of the vertices
+         *
+         * @member {Uint16Array}
+         */
+        //  TODO auto generate this based on draw mode!
+        _this.indices = indices || new Uint16Array([0, 1, 3, 2]);
+
+        /**
+         * Version of mesh uvs are dirty or not
+         *
+         * @member {number}
+         */
+        _this.dirty = 0;
+
+        /**
+         * Version of mesh indices
+         *
+         * @member {number}
+         */
+        _this.indexDirty = 0;
+
+        /**
+         * Version of mesh verticies array
+         *
+         * @member {number}
+         */
+        _this.vertexDirty = 0;
+
+        /**
+         * For backwards compatibility the default is to re-upload verticies each render call.
+         * Set this to `false` and increase `vertexDirty` to manually re-upload the buffer.
+         *
+         * @member {boolean}
+         */
+        _this.autoUpdate = true;
+
+        /**
+         * The blend mode to be applied to the sprite. Set to `PIXI.BLEND_MODES.NORMAL` to remove
+         * any blend mode.
+         *
+         * @member {number}
+         * @default PIXI.BLEND_MODES.NORMAL
+         * @see PIXI.BLEND_MODES
+         */
+        _this.blendMode = core.BLEND_MODES.NORMAL;
+
+        /**
+         * Triangles in canvas mode are automatically antialiased, use this value to force triangles
+         * to overlap a bit with each other.
+         *
+         * @member {number}
+         */
+        _this.canvasPadding = core.settings.MESH_CANVAS_PADDING;
+
+        /**
+         * The way the Mesh should be drawn, can be any of the {@link PIXI.mesh.Mesh.DRAW_MODES} consts
+         *
+         * @member {number}
+         * @see PIXI.mesh.Mesh.DRAW_MODES
+         */
+        _this.drawMode = drawMode || Mesh.DRAW_MODES.TRIANGLE_MESH;
+
+        /**
+         * The default shader that is used if a mesh doesn't have a more specific one.
+         *
+         * @member {PIXI.Shader}
+         */
+        _this.shader = null;
+
+        /**
+         * The tint applied to the mesh. This is a [r,g,b] value. A value of [1,1,1] will remove any
+         * tint effect.
+         *
+         * @member {number}
+         */
+        _this.tintRgb = new Float32Array([1, 1, 1]);
+
+        /**
+         * A map of renderer IDs to webgl render data
+         *
+         * @private
+         * @member {object<number, object>}
+         */
+        _this._glDatas = {};
+
+        /**
+         * transform that is applied to UV to get the texture coords
+         * its updated independently from texture uvTransform
+         * updates of uvs are tied to that thing
+         *
+         * @member {PIXI.TextureMatrix}
+         * @private
+         */
+        _this._uvTransform = new core.TextureMatrix(_this._texture);
+
+        /**
+         * whether or not upload uvTransform to shader
+         * if its false, then uvs should be pre-multiplied
+         * if you change it for generated mesh, please call 'refresh(true)'
+         * @member {boolean}
+         * @default false
+         */
+        _this.uploadUvTransform = false;
+
+        /**
+         * Plugin that is responsible for rendering this element.
+         * Allows to customize the rendering process without overriding '_renderWebGL' & '_renderCanvas' methods.
+         * @member {string}
+         * @default 'mesh'
+         */
+        _this.pluginName = 'mesh';
+        return _this;
+    }
+
+    /**
+     * Renders the object using the WebGL renderer
+     *
+     * @private
+     * @param {PIXI.WebGLRenderer} renderer - a reference to the WebGL renderer
+     */
+
+
+    Mesh.prototype._renderWebGL = function _renderWebGL(renderer) {
+        this.refresh();
+        renderer.setObjectRenderer(renderer.plugins[this.pluginName]);
+        renderer.plugins[this.pluginName].render(this);
+    };
+
+    /**
+     * Renders the object using the Canvas renderer
+     *
+     * @private
+     * @param {PIXI.CanvasRenderer} renderer - The canvas renderer.
+     */
+
+
+    Mesh.prototype._renderCanvas = function _renderCanvas(renderer) {
+        this.refresh();
+        renderer.plugins[this.pluginName].render(this);
+    };
+
+    /**
+     * When the texture is updated, this event will fire to update the scale and frame
+     *
+     * @private
+     */
+
+
+    Mesh.prototype._onTextureUpdate = function _onTextureUpdate() {
+        this._uvTransform.texture = this._texture;
+        this.refresh();
+    };
+
+    /**
+     * multiplies uvs only if uploadUvTransform is false
+     * call it after you change uvs manually
+     * make sure that texture is valid
+     */
+
+
+    Mesh.prototype.multiplyUvs = function multiplyUvs() {
+        if (!this.uploadUvTransform) {
+            this._uvTransform.multiplyUvs(this.uvs);
+        }
+    };
+
+    /**
+     * Refreshes uvs for generated meshes (rope, plane)
+     * sometimes refreshes vertices too
+     *
+     * @param {boolean} [forceUpdate=false] if true, matrices will be updated any case
+     */
+
+
+    Mesh.prototype.refresh = function refresh(forceUpdate) {
+        if (this.autoUpdate) {
+            this.vertexDirty++;
+        }
+        if (this._uvTransform.update(forceUpdate)) {
+            this._refresh();
+        }
+    };
+
+    /**
+     * re-calculates mesh coords
+     * @protected
+     */
+
+
+    Mesh.prototype._refresh = function _refresh() {}
+    /* empty */
+
+
+    /**
+     * Returns the bounds of the mesh as a rectangle. The bounds calculation takes the worldTransform into account.
+     *
+     */
+    ;
+
+    Mesh.prototype._calculateBounds = function _calculateBounds() {
+        // TODO - we can cache local bounds and use them if they are dirty (like graphics)
+        this._bounds.addVertices(this.transform, this.vertices, 0, this.vertices.length);
+    };
+
+    /**
+     * Tests if a point is inside this mesh. Works only for TRIANGLE_MESH
+     *
+     * @param {PIXI.Point} point - the point to test
+     * @return {boolean} the result of the test
+     */
+
+
+    Mesh.prototype.containsPoint = function containsPoint(point) {
+        if (!this.getBounds().contains(point.x, point.y)) {
+            return false;
+        }
+
+        this.worldTransform.applyInverse(point, tempPoint);
+
+        var vertices = this.vertices;
+        var points = tempPolygon.points;
+        var indices = this.indices;
+        var len = this.indices.length;
+        var step = this.drawMode === Mesh.DRAW_MODES.TRIANGLES ? 3 : 1;
+
+        for (var i = 0; i + 2 < len; i += step) {
+            var ind0 = indices[i] * 2;
+            var ind1 = indices[i + 1] * 2;
+            var ind2 = indices[i + 2] * 2;
+
+            points[0] = vertices[ind0];
+            points[1] = vertices[ind0 + 1];
+            points[2] = vertices[ind1];
+            points[3] = vertices[ind1 + 1];
+            points[4] = vertices[ind2];
+            points[5] = vertices[ind2 + 1];
+
+            if (tempPolygon.contains(tempPoint.x, tempPoint.y)) {
+                return true;
+            }
+        }
+
+        return false;
+    };
+
+    /**
+     * The texture that the mesh uses.
      *
      * @member {PIXI.Texture}
-     * @default PIXI.Texture.EMPTY
-     * @private
      */
-    var _this = _possibleConstructorReturn(this, _core$Container.call(this));
 
-    _this._texture = texture || _Texture2.default.EMPTY;
 
     /**
-     * The Uvs of the Mesh
+     * Destroys the Mesh object.
      *
-     * @member {Float32Array}
+     * @param {object|boolean} [options] - Options parameter. A boolean will act as if all
+     *  options have been set to that value
+     * @param {boolean} [options.children=false] - if set to true, all the children will have
+     *  their destroy method called as well. 'options' will be passed on to those calls.
+     * @param {boolean} [options.texture=false] - Only used for child Sprites if options.children is set to true
+     *  Should it destroy the texture of the child sprite
+     * @param {boolean} [options.baseTexture=false] - Only used for child Sprites if options.children is set to true
+     *  Should it destroy the base texture of the child sprite
      */
-    _this.uvs = uvs || new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]);
+    Mesh.prototype.destroy = function destroy(options) {
+        // for each webgl data entry, destroy the WebGLGraphicsData
+        for (var id in this._glDatas) {
+            var data = this._glDatas[id];
 
-    /**
-     * An array of vertices
-     *
-     * @member {Float32Array}
-     */
-    _this.vertices = vertices || new Float32Array([0, 0, 100, 0, 100, 100, 0, 100]);
-
-    /**
-     * An array containing the indices of the vertices
-     *
-     * @member {Uint16Array}
-     */
-    //  TODO auto generate this based on draw mode!
-    _this.indices = indices || new Uint16Array([0, 1, 3, 2]);
-
-    /**
-     * Version of mesh uvs are dirty or not
-     *
-     * @member {number}
-     */
-    _this.dirty = 0;
-
-    /**
-     * Version of mesh indices
-     *
-     * @member {number}
-     */
-    _this.indexDirty = 0;
-
-    /**
-     * The blend mode to be applied to the sprite. Set to `PIXI.BLEND_MODES.NORMAL` to remove
-     * any blend mode.
-     *
-     * @member {number}
-     * @default PIXI.BLEND_MODES.NORMAL
-     * @see PIXI.BLEND_MODES
-     */
-    _this.blendMode = core.BLEND_MODES.NORMAL;
-
-    /**
-     * Triangles in canvas mode are automatically antialiased, use this value to force triangles
-     * to overlap a bit with each other.
-     *
-     * @member {number}
-     */
-    _this.canvasPadding = core.settings.MESH_CANVAS_PADDING;
-
-    /**
-     * The way the Mesh should be drawn, can be any of the {@link PIXI.mesh.Mesh.DRAW_MODES} consts
-     *
-     * @member {number}
-     * @see PIXI.mesh.Mesh.DRAW_MODES
-     */
-    _this.drawMode = drawMode || Mesh.DRAW_MODES.TRIANGLE_MESH;
-
-    /**
-     * The default shader that is used if a mesh doesn't have a more specific one.
-     *
-     * @member {PIXI.Shader}
-     */
-    _this.shader = null;
-
-    /**
-     * The tint applied to the mesh. This is a [r,g,b] value. A value of [1,1,1] will remove any
-     * tint effect.
-     *
-     * @member {number}
-     */
-    _this.tintRgb = new Float32Array([1, 1, 1]);
-
-    /**
-     * A map of renderer IDs to webgl render data
-     *
-     * @private
-     * @member {object<number, object>}
-     */
-    _this._glDatas = {};
-
-    /**
-     * transform that is applied to UV to get the texture coords
-     * its updated independently from texture uvTransform
-     * updates of uvs are tied to that thing
-     *
-     * @member {PIXI.TextureMatrix}
-     * @private
-     */
-    _this._uvTransform = new core.TextureMatrix(_this._texture);
-
-    /**
-     * whether or not upload uvTransform to shader
-     * if its false, then uvs should be pre-multiplied
-     * if you change it for generated mesh, please call 'refresh(true)'
-     * @member {boolean}
-     * @default false
-     */
-    _this.uploadUvTransform = false;
-
-    /**
-     * Plugin that is responsible for rendering this element.
-     * Allows to customize the rendering process without overriding '_renderWebGL' & '_renderCanvas' methods.
-     * @member {string}
-     * @default 'mesh'
-     */
-    _this.pluginName = 'mesh';
-    return _this;
-  }
-
-  /**
-   * Renders the object using the WebGL renderer
-   *
-   * @private
-   * @param {PIXI.WebGLRenderer} renderer - a reference to the WebGL renderer
-   */
-
-
-  Mesh.prototype._renderWebGL = function _renderWebGL(renderer) {
-    this.refresh();
-    renderer.setObjectRenderer(renderer.plugins[this.pluginName]);
-    renderer.plugins[this.pluginName].render(this);
-  };
-
-  /**
-   * Renders the object using the Canvas renderer
-   *
-   * @private
-   * @param {PIXI.CanvasRenderer} renderer - The canvas renderer.
-   */
-
-
-  Mesh.prototype._renderCanvas = function _renderCanvas(renderer) {
-    this.refresh();
-    renderer.plugins[this.pluginName].render(this);
-  };
-
-  /**
-   * When the texture is updated, this event will fire to update the scale and frame
-   *
-   * @private
-   */
-
-
-  Mesh.prototype._onTextureUpdate = function _onTextureUpdate() {
-    this._uvTransform.texture = this._texture;
-    this.refresh();
-  };
-
-  /**
-   * multiplies uvs only if uploadUvTransform is false
-   * call it after you change uvs manually
-   * make sure that texture is valid
-   */
-
-
-  Mesh.prototype.multiplyUvs = function multiplyUvs() {
-    if (!this.uploadUvTransform) {
-      this._uvTransform.multiplyUvs(this.uvs);
-    }
-  };
-
-  /**
-   * Refreshes uvs for generated meshes (rope, plane)
-   * sometimes refreshes vertices too
-   *
-   * @param {boolean} [forceUpdate=false] if true, matrices will be updated any case
-   */
-
-
-  Mesh.prototype.refresh = function refresh(forceUpdate) {
-    if (this._uvTransform.update(forceUpdate)) {
-      this._refresh();
-    }
-  };
-
-  /**
-   * re-calculates mesh coords
-   * @protected
-   */
-
-
-  Mesh.prototype._refresh = function _refresh() {}
-  /* empty */
-
-
-  /**
-   * Returns the bounds of the mesh as a rectangle. The bounds calculation takes the worldTransform into account.
-   *
-   */
-  ;
-
-  Mesh.prototype._calculateBounds = function _calculateBounds() {
-    // TODO - we can cache local bounds and use them if they are dirty (like graphics)
-    this._bounds.addVertices(this.transform, this.vertices, 0, this.vertices.length);
-  };
-
-  /**
-   * Tests if a point is inside this mesh. Works only for TRIANGLE_MESH
-   *
-   * @param {PIXI.Point} point - the point to test
-   * @return {boolean} the result of the test
-   */
-
-
-  Mesh.prototype.containsPoint = function containsPoint(point) {
-    if (!this.getBounds().contains(point.x, point.y)) {
-      return false;
-    }
-
-    this.worldTransform.applyInverse(point, tempPoint);
-
-    var vertices = this.vertices;
-    var points = tempPolygon.points;
-    var indices = this.indices;
-    var len = this.indices.length;
-    var step = this.drawMode === Mesh.DRAW_MODES.TRIANGLES ? 3 : 1;
-
-    for (var i = 0; i + 2 < len; i += step) {
-      var ind0 = indices[i] * 2;
-      var ind1 = indices[i + 1] * 2;
-      var ind2 = indices[i + 2] * 2;
-
-      points[0] = vertices[ind0];
-      points[1] = vertices[ind0 + 1];
-      points[2] = vertices[ind1];
-      points[3] = vertices[ind1 + 1];
-      points[4] = vertices[ind2];
-      points[5] = vertices[ind2 + 1];
-
-      if (tempPolygon.contains(tempPoint.x, tempPoint.y)) {
-        return true;
-      }
-    }
-
-    return false;
-  };
-
-  /**
-   * The texture that the mesh uses.
-   *
-   * @member {PIXI.Texture}
-   */
-
-
-  _createClass(Mesh, [{
-    key: 'texture',
-    get: function get() {
-      return this._texture;
-    },
-    set: function set(value) // eslint-disable-line require-jsdoc
-    {
-      if (this._texture === value) {
-        return;
-      }
-
-      this._texture = value;
-
-      if (value) {
-        // wait for the texture to load
-        if (value.baseTexture.hasLoaded) {
-          this._onTextureUpdate();
-        } else {
-          value.once('update', this._onTextureUpdate, this);
+            if (data.destroy) {
+                data.destroy();
+            } else {
+                if (data.vertexBuffer) {
+                    data.vertexBuffer.destroy();
+                    data.vertexBuffer = null;
+                }
+                if (data.indexBuffer) {
+                    data.indexBuffer.destroy();
+                    data.indexBuffer = null;
+                }
+                if (data.uvBuffer) {
+                    data.uvBuffer.destroy();
+                    data.uvBuffer = null;
+                }
+                if (data.vao) {
+                    data.vao.destroy();
+                    data.vao = null;
+                }
+            }
         }
-      }
-    }
 
-    /**
-     * The tint applied to the mesh. This is a hex value. A value of 0xFFFFFF will remove any tint effect.
-     *
-     * @member {number}
-     * @default 0xFFFFFF
-     */
+        this._glDatas = null;
 
-  }, {
-    key: 'tint',
-    get: function get() {
-      return core.utils.rgb2hex(this.tintRgb);
-    },
-    set: function set(value) // eslint-disable-line require-jsdoc
-    {
-      this.tintRgb = core.utils.hex2rgb(value, this.tintRgb);
-    }
-  }]);
+        _core$Container.prototype.destroy.call(this, options);
+    };
 
-  return Mesh;
+    _createClass(Mesh, [{
+        key: 'texture',
+        get: function get() {
+            return this._texture;
+        },
+        set: function set(value) // eslint-disable-line require-jsdoc
+        {
+            if (this._texture === value) {
+                return;
+            }
+
+            this._texture = value;
+
+            if (value) {
+                // wait for the texture to load
+                if (value.baseTexture.hasLoaded) {
+                    this._onTextureUpdate();
+                } else {
+                    value.once('update', this._onTextureUpdate, this);
+                }
+            }
+        }
+
+        /**
+         * The tint applied to the mesh. This is a hex value. A value of 0xFFFFFF will remove any tint effect.
+         *
+         * @member {number}
+         * @default 0xFFFFFF
+         */
+
+    }, {
+        key: 'tint',
+        get: function get() {
+            return core.utils.rgb2hex(this.tintRgb);
+        },
+        set: function set(value) // eslint-disable-line require-jsdoc
+        {
+            this.tintRgb = core.utils.hex2rgb(value, this.tintRgb);
+        }
+    }]);
+
+    return Mesh;
 }(core.Container);
 
 /**
@@ -33927,8 +34922,8 @@ var Mesh = function (_core$Container) {
 
 exports.default = Mesh;
 Mesh.DRAW_MODES = {
-  TRIANGLE_MESH: 0,
-  TRIANGLES: 1
+    TRIANGLE_MESH: 0,
+    TRIANGLES: 1
 };
 
 },{"../core":61,"../core/textures/Texture":111}],164:[function(require,module,exports){
@@ -34027,7 +35022,7 @@ var NineSlicePlane = function (_Plane) {
          * @memberof PIXI.NineSlicePlane#
          * @override
          */
-        _this.leftWidth = typeof leftWidth !== 'undefined' ? leftWidth : DEFAULT_BORDER_SIZE;
+        _this._leftWidth = typeof leftWidth !== 'undefined' ? leftWidth : DEFAULT_BORDER_SIZE;
 
         /**
          * The width of the right column (b)
@@ -34036,7 +35031,7 @@ var NineSlicePlane = function (_Plane) {
          * @memberof PIXI.NineSlicePlane#
          * @override
          */
-        _this.rightWidth = typeof rightWidth !== 'undefined' ? rightWidth : DEFAULT_BORDER_SIZE;
+        _this._rightWidth = typeof rightWidth !== 'undefined' ? rightWidth : DEFAULT_BORDER_SIZE;
 
         /**
          * The height of the top row (c)
@@ -34045,7 +35040,7 @@ var NineSlicePlane = function (_Plane) {
          * @memberof PIXI.NineSlicePlane#
          * @override
          */
-        _this.topHeight = typeof topHeight !== 'undefined' ? topHeight : DEFAULT_BORDER_SIZE;
+        _this._topHeight = typeof topHeight !== 'undefined' ? topHeight : DEFAULT_BORDER_SIZE;
 
         /**
          * The height of the bottom row (d)
@@ -34054,7 +35049,7 @@ var NineSlicePlane = function (_Plane) {
          * @memberof PIXI.NineSlicePlane#
          * @override
          */
-        _this.bottomHeight = typeof bottomHeight !== 'undefined' ? bottomHeight : DEFAULT_BORDER_SIZE;
+        _this._bottomHeight = typeof bottomHeight !== 'undefined' ? bottomHeight : DEFAULT_BORDER_SIZE;
 
         _this.refresh(true);
         return _this;
@@ -34069,8 +35064,11 @@ var NineSlicePlane = function (_Plane) {
     NineSlicePlane.prototype.updateHorizontalVertices = function updateHorizontalVertices() {
         var vertices = this.vertices;
 
-        vertices[9] = vertices[11] = vertices[13] = vertices[15] = this._topHeight;
-        vertices[17] = vertices[19] = vertices[21] = vertices[23] = this._height - this._bottomHeight;
+        var h = this._topHeight + this._bottomHeight;
+        var scale = this._height > h ? 1.0 : this._height / h;
+
+        vertices[9] = vertices[11] = vertices[13] = vertices[15] = this._topHeight * scale;
+        vertices[17] = vertices[19] = vertices[21] = vertices[23] = this._height - this._bottomHeight * scale;
         vertices[25] = vertices[27] = vertices[29] = vertices[31] = this._height;
     };
 
@@ -34083,8 +35081,11 @@ var NineSlicePlane = function (_Plane) {
     NineSlicePlane.prototype.updateVerticalVertices = function updateVerticalVertices() {
         var vertices = this.vertices;
 
-        vertices[2] = vertices[10] = vertices[18] = vertices[26] = this._leftWidth;
-        vertices[4] = vertices[12] = vertices[20] = vertices[28] = this._width - this._rightWidth;
+        var w = this._leftWidth + this._rightWidth;
+        var scale = this._width > w ? 1.0 : this._width / w;
+
+        vertices[2] = vertices[10] = vertices[18] = vertices[26] = this._leftWidth * scale;
+        vertices[4] = vertices[12] = vertices[20] = vertices[28] = this._width - this._rightWidth * scale;
         vertices[6] = vertices[14] = vertices[22] = vertices[30] = this._width;
     };
 
@@ -34355,8 +35356,8 @@ var Plane = function (_Mesh) {
 
     /**
      * @param {PIXI.Texture} texture - The texture to use on the Plane.
-     * @param {number} verticesX - The number of vertices in the x-axis
-     * @param {number} verticesY - The number of vertices in the y-axis
+     * @param {number} [verticesX=10] - The number of vertices in the x-axis
+     * @param {number} [verticesY=10] - The number of vertices in the y-axis
      */
     function Plane(texture, verticesX, verticesY) {
         _classCallCheck(this, Plane);
@@ -35140,7 +36141,8 @@ var MeshRenderer = function (_core$ObjectRenderer) {
                 // build the vao object that will render..
                 vao: null,
                 dirty: mesh.dirty,
-                indexDirty: mesh.indexDirty
+                indexDirty: mesh.indexDirty,
+                vertexDirty: mesh.vertexDirty
             };
 
             // build the vao object that will render..
@@ -35161,7 +36163,10 @@ var MeshRenderer = function (_core$ObjectRenderer) {
             glData.indexBuffer.upload(mesh.indices);
         }
 
-        glData.vertexBuffer.upload(mesh.vertices);
+        if (mesh.vertexDirty !== glData.vertexDirty) {
+            glData.vertexDirty = mesh.vertexDirty;
+            glData.vertexBuffer.upload(mesh.vertices);
+        }
 
         renderer.bindShader(glData.shader);
 
@@ -35950,7 +36955,7 @@ var ParticleRenderer = function (_core$ObjectRenderer) {
 
         this.CONTEXT_UID = this.renderer.CONTEXT_UID;
 
-        // start default shader
+        // setup default shader
         this.shader = new _ParticleShader2.default(gl);
 
         this.properties = [
@@ -36068,7 +37073,7 @@ var ParticleRenderer = function (_core$ObjectRenderer) {
             // we always upload the dynamic
             buffer.uploadDynamic(children, i, amount);
 
-            var bid = container._bufferUpdateIDs[i] || 0;
+            var bid = container._bufferUpdateIDs[j] || 0;
 
             updateStatic = updateStatic || buffer._updateID < bid;
             // we only upload the static content when we have to!

@@ -37,6 +37,444 @@ module.exports = Clock;
 },{}],2:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+var SlotList_1 = require("./SlotList");
+var Slot_1 = require("./Slot");
+var OnceSignal = (function () {
+    function OnceSignal() {
+        var valueClasses = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            valueClasses[_i] = arguments[_i];
+        }
+        this.slots = SlotList_1.SlotList.NIL;
+        this.valueClasses = valueClasses.length === 1 && valueClasses[0] instanceof Array ? valueClasses[0] : valueClasses;
+    }
+    Object.defineProperty(OnceSignal.prototype, "valueClasses", {
+        get: function () {
+            return this._valueClasses;
+        },
+        set: function (value) {
+            this._valueClasses = value ? value.slice() : [];
+            for (var i = this._valueClasses.length; i--;) {
+                if (!(this._valueClasses[i] instanceof Object)) {
+                    throw new Error("Invalid valueClasses argument: " +
+                        "item at index " +
+                        i +
+                        " should be a Class but was:<" +
+                        this._valueClasses[i] +
+                        ">." +
+                        this._valueClasses[i]);
+                }
+            }
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(OnceSignal.prototype, "numListeners", {
+        get: function () {
+            return this.slots.length;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    OnceSignal.prototype.addOnce = function (listener) {
+        return this.registerListener(listener, true);
+    };
+    OnceSignal.prototype.once = function (listener) {
+        return this.addOnce(listener);
+    };
+    OnceSignal.prototype.remove = function (listener) {
+        var slot = this.slots.find(listener);
+        if (!slot) {
+            return null;
+        }
+        this.slots = this.slots.filterNot(listener);
+        return slot;
+    };
+    OnceSignal.prototype.removeAll = function () {
+        this.slots = SlotList_1.SlotList.NIL;
+    };
+    OnceSignal.prototype.dispatch = function () {
+        var valueObjects = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            valueObjects[_i] = arguments[_i];
+        }
+        var numValueClasses = this._valueClasses.length;
+        var numValueObjects = valueObjects.length;
+        if (numValueObjects < numValueClasses) {
+            throw new Error("Incorrect number of arguments. " + "Expected at least " + numValueClasses + " but received " + numValueObjects + ".");
+        }
+        for (var i = 0; i < numValueClasses; i++) {
+            if (valueObjects[i] === null ||
+                (valueObjects[i] instanceof this._valueClasses[i] || valueObjects[i].constructor === this._valueClasses[i])) {
+                continue;
+            }
+            throw new Error("Value object <" + valueObjects[i] + "> is not an instance of <" + this._valueClasses[i] + ">.");
+        }
+        var slotsToProcess = this.slots;
+        if (slotsToProcess.nonEmpty) {
+            while (slotsToProcess.nonEmpty) {
+                slotsToProcess.head.execute(valueObjects);
+                slotsToProcess = slotsToProcess.tail;
+            }
+        }
+    };
+    OnceSignal.prototype.registerListener = function (listener, once) {
+        if (once === void 0) { once = false; }
+        if (this.registrationPossible(listener, once)) {
+            var newSlot = new Slot_1.Slot(listener, this, once);
+            this.slots = this.slots.prepend(newSlot);
+            return newSlot;
+        }
+        return this.slots.find(listener);
+    };
+    OnceSignal.prototype.registrationPossible = function (listener, once) {
+        if (!this.slots.nonEmpty) {
+            return true;
+        }
+        var existingSlot = this.slots.find(listener);
+        if (!existingSlot) {
+            return true;
+        }
+        if (existingSlot.once !== once) {
+            throw new Error("You cannot addOnce() then add() the same listener without removing the relationship first.");
+        }
+        return false;
+    };
+    return OnceSignal;
+}());
+exports.OnceSignal = OnceSignal;
+
+},{"./Slot":4,"./SlotList":5}],3:[function(require,module,exports){
+"use strict";
+var __extends = (this && this.__extends) || (function () {
+    var extendStatics = Object.setPrototypeOf ||
+        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+    return function (d, b) {
+        extendStatics(d, b);
+        function __() { this.constructor = d; }
+        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+var OnceSignal_1 = require("./OnceSignal");
+var Signal = (function (_super) {
+    __extends(Signal, _super);
+    function Signal() {
+        return _super !== null && _super.apply(this, arguments) || this;
+    }
+    Signal.prototype.add = function (listener) {
+        return this.registerListener(listener);
+    };
+    return Signal;
+}(OnceSignal_1.OnceSignal));
+exports.Signal = Signal;
+
+},{"./OnceSignal":2}],4:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+var Slot = (function () {
+    function Slot(listener, signal, once, priority) {
+        if (once === void 0) { once = false; }
+        if (priority === void 0) { priority = 0; }
+        this._enabled = true;
+        this._once = false;
+        this._priority = 0;
+        this._listener = listener;
+        this._once = once;
+        this._signal = signal;
+        this._priority = priority;
+        this.verifyListener(listener);
+    }
+    Slot.prototype.execute0 = function () {
+        if (!this._enabled) {
+            return;
+        }
+        if (this._once) {
+            this.remove();
+        }
+        if (this._params && this._params.length) {
+            this._listener.apply(null, this._params);
+            return;
+        }
+        this._listener();
+    };
+    Slot.prototype.execute1 = function (value) {
+        if (!this._enabled) {
+            return;
+        }
+        if (this._once) {
+            this.remove();
+        }
+        if (this._params && this._params.length) {
+            this._listener.apply(null, [value].concat(this._params));
+            return;
+        }
+        this._listener(value);
+    };
+    Slot.prototype.execute = function (valueObjects) {
+        if (!this._enabled) {
+            return;
+        }
+        if (this._once) {
+            this.remove();
+        }
+        if (this._params && this._params.length) {
+            valueObjects = valueObjects.concat(this._params);
+        }
+        var numValueObjects = valueObjects.length;
+        if (numValueObjects === 0) {
+            this._listener();
+        }
+        else if (numValueObjects === 1) {
+            this._listener(valueObjects[0]);
+        }
+        else if (numValueObjects === 2) {
+            this._listener(valueObjects[0], valueObjects[1]);
+        }
+        else if (numValueObjects === 3) {
+            this._listener(valueObjects[0], valueObjects[1], valueObjects[2]);
+        }
+        else {
+            this._listener.apply(null, valueObjects);
+        }
+    };
+    Object.defineProperty(Slot.prototype, "listener", {
+        get: function () {
+            return this._listener;
+        },
+        set: function (value) {
+            if (null == value) {
+                throw new Error("Given listener is null.\nDid you want to set enabled to false instead?");
+            }
+            this.verifyListener(value);
+            this._listener = value;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Slot.prototype, "once", {
+        get: function () {
+            return this._once;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Slot.prototype, "priority", {
+        get: function () {
+            return this._priority;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Slot.prototype.toString = function () {
+        return ("[Slot listener: " +
+            this._listener +
+            ", once: " +
+            this._once +
+            ", priority: " +
+            this._priority +
+            ", enabled: " +
+            this._enabled +
+            "]");
+    };
+    Object.defineProperty(Slot.prototype, "enabled", {
+        get: function () {
+            return this._enabled;
+        },
+        set: function (value) {
+            this._enabled = value;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Slot.prototype, "params", {
+        get: function () {
+            return this._params;
+        },
+        set: function (value) {
+            this._params = value;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Slot.prototype.remove = function () {
+        this._signal.remove(this._listener);
+    };
+    Slot.prototype.verifyListener = function (listener) {
+        if (null == listener) {
+            throw new Error("Given listener is null.");
+        }
+        if (null == this._signal) {
+            throw new Error("Internal signal reference has not been set yet.");
+        }
+    };
+    return Slot;
+}());
+exports.Slot = Slot;
+
+},{}],5:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+var SlotList = (function () {
+    function SlotList(head, tail) {
+        if (tail === void 0) { tail = null; }
+        this.nonEmpty = false;
+        if (!head && !tail) {
+            if (SlotList.NIL) {
+                throw new Error("Parameters head and tail are null. Use the NIL element instead.");
+            }
+            this.nonEmpty = false;
+        }
+        else if (!head) {
+            throw new Error("Parameter head cannot be null.");
+        }
+        else {
+            this.head = head;
+            this.tail = tail || SlotList.NIL;
+            this.nonEmpty = true;
+        }
+    }
+    Object.defineProperty(SlotList.prototype, "length", {
+        get: function () {
+            if (!this.nonEmpty) {
+                return 0;
+            }
+            if (this.tail === SlotList.NIL) {
+                return 1;
+            }
+            var result = 0;
+            var p = this;
+            while (p.nonEmpty) {
+                ++result;
+                p = p.tail;
+            }
+            return result;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    SlotList.prototype.prepend = function (slot) {
+        return new SlotList(slot, this);
+    };
+    SlotList.prototype.append = function (slot) {
+        if (!slot) {
+            return this;
+        }
+        if (!this.nonEmpty) {
+            return new SlotList(slot);
+        }
+        if (this.tail === SlotList.NIL) {
+            return new SlotList(slot).prepend(this.head);
+        }
+        var wholeClone = new SlotList(this.head);
+        var subClone = wholeClone;
+        var current = this.tail;
+        while (current.nonEmpty) {
+            subClone = subClone.tail = new SlotList(current.head);
+            current = current.tail;
+        }
+        subClone.tail = new SlotList(slot);
+        return wholeClone;
+    };
+    SlotList.prototype.insertWithPriority = function (slot) {
+        if (!this.nonEmpty) {
+            return new SlotList(slot);
+        }
+        var priority = slot.priority;
+        if (priority > this.head.priority) {
+            return this.prepend(slot);
+        }
+        var wholeClone = new SlotList(this.head);
+        var subClone = wholeClone;
+        var current = this.tail;
+        while (current.nonEmpty) {
+            if (priority > current.head.priority) {
+                subClone.tail = current.prepend(slot);
+                return wholeClone;
+            }
+            subClone = subClone.tail = new SlotList(current.head);
+            current = current.tail;
+        }
+        subClone.tail = new SlotList(slot);
+        return wholeClone;
+    };
+    SlotList.prototype.filterNot = function (listener) {
+        if (!this.nonEmpty || listener == null) {
+            return this;
+        }
+        if (listener === this.head.listener) {
+            return this.tail;
+        }
+        var wholeClone = new SlotList(this.head);
+        var subClone = wholeClone;
+        var current = this.tail;
+        while (current.nonEmpty) {
+            if (current.head.listener === listener) {
+                subClone.tail = current.tail;
+                return wholeClone;
+            }
+            subClone = subClone.tail = new SlotList(current.head);
+            current = current.tail;
+        }
+        return this;
+    };
+    SlotList.prototype.contains = function (listener) {
+        if (!this.nonEmpty) {
+            return false;
+        }
+        var p = this;
+        while (p.nonEmpty) {
+            if (p.head.listener === listener) {
+                return true;
+            }
+            p = p.tail;
+        }
+        return false;
+    };
+    SlotList.prototype.find = function (listener) {
+        if (!this.nonEmpty) {
+            return null;
+        }
+        var p = this;
+        while (p.nonEmpty) {
+            if (p.head.listener === listener) {
+                return p.head;
+            }
+            p = p.tail;
+        }
+        return null;
+    };
+    SlotList.prototype.toString = function () {
+        var buffer = "";
+        var p = this;
+        while (p.nonEmpty) {
+            buffer += p.head + " -> ";
+            p = p.tail;
+        }
+        buffer += "NIL";
+        return "[List " + buffer + "]";
+    };
+    SlotList.NIL = new SlotList(null, null);
+    return SlotList;
+}());
+exports.SlotList = SlotList;
+
+},{}],6:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+var OnceSignal_1 = require("./OnceSignal");
+exports.OnceSignal = OnceSignal_1.OnceSignal;
+var Signal_1 = require("./Signal");
+exports.Signal = Signal_1.Signal;
+var Slot_1 = require("./Slot");
+exports.Slot = Slot_1.Slot;
+var SlotList_1 = require("./SlotList");
+exports.SlotList = SlotList_1.SlotList;
+
+},{"./OnceSignal":2,"./Signal":3,"./Slot":4,"./SlotList":5}],7:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
 var compare_1 = require("./compare");
 var StateContainer = /** @class */ (function () {
     function StateContainer(state) {
@@ -53,14 +491,14 @@ var StateContainer = /** @class */ (function () {
     }
     StateContainer.prototype.set = function (newState) {
         var patches = compare_1.compare(this.state, newState);
-        this.checkPatches(patches);
         this.state = newState;
+        this.checkPatches(patches, this.listeners, this.defaultListener);
         return patches;
     };
     StateContainer.prototype.registerPlaceholder = function (placeholder, matcher) {
         this.matcherPlaceholders[placeholder] = matcher;
     };
-    StateContainer.prototype.listen = function (segments, callback) {
+    StateContainer.prototype.listen = function (segments, callback, immediate) {
         var _this = this;
         var rules;
         if (typeof (segments) === "function") {
@@ -94,6 +532,10 @@ var StateContainer = /** @class */ (function () {
         else {
             this.listeners.push(listener);
         }
+        // immediatelly try to trigger this listener.
+        if (immediate) {
+            this.checkPatches(compare_1.compare({}, this.state), [listener]);
+        }
         return listener;
     };
     StateContainer.prototype.removeListener = function (listener) {
@@ -106,11 +548,10 @@ var StateContainer = /** @class */ (function () {
     StateContainer.prototype.removeAllListeners = function () {
         this.reset();
     };
-    StateContainer.prototype.checkPatches = function (patches) {
-        for (var i = patches.length - 1; i >= 0; i--) {
-            var matched = false;
-            for (var j = 0, len = this.listeners.length; j < len; j++) {
-                var listener = this.listeners[j];
+    StateContainer.prototype.checkPatches = function (patches, listeners, defaultListener) {
+        for (var j = 0, len = listeners.length; j < len; j++) {
+            var listener = listeners[j];
+            for (var i = patches.length - 1; i >= 0; i--) {
                 var pathVariables = listener && this.getPathVariables(patches[i], listener);
                 if (pathVariables) {
                     listener.callback({
@@ -119,12 +560,16 @@ var StateContainer = /** @class */ (function () {
                         operation: patches[i].operation,
                         value: patches[i].value
                     });
-                    matched = true;
+                    patches[i].matched = true;
                 }
             }
-            // check for fallback listener
-            if (!matched && this.defaultListener) {
-                this.defaultListener.callback(patches[i]);
+        }
+        // trigger default listener callback with each unmatched patch
+        if (defaultListener) {
+            for (var i = patches.length - 1; i >= 0; i--) {
+                if (!patches[i].matched) {
+                    defaultListener.callback(patches[i]);
+                }
             }
         }
     };
@@ -152,7 +597,7 @@ var StateContainer = /** @class */ (function () {
 }());
 exports.StateContainer = StateContainer;
 
-},{"./compare":3}],3:[function(require,module,exports){
+},{"./compare":8}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 function compare(tree1, tree2) {
@@ -190,7 +635,6 @@ function objectKeys(obj) {
 function generate(mirror, obj, patches, path) {
     var newKeys = objectKeys(obj);
     var oldKeys = objectKeys(mirror);
-    var changed = false;
     var deleted = false;
     for (var t = oldKeys.length - 1; t >= 0; t--) {
         var key = oldKeys[t];
@@ -202,8 +646,12 @@ function generate(mirror, obj, patches, path) {
             }
             else {
                 if (oldVal !== newVal) {
-                    changed = true;
-                    patches.push({ operation: "replace", path: concat(path, key), value: newVal });
+                    patches.push({
+                        operation: "replace",
+                        path: concat(path, key),
+                        value: newVal,
+                        previousValue: oldVal
+                    });
                 }
             }
         }
@@ -229,19 +677,19 @@ function generate(mirror, obj, patches, path) {
     }
 }
 
-},{}],4:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var StateContainer_1 = require("./StateContainer");
 exports.StateContainer = StateContainer_1.StateContainer;
 
-},{"./StateContainer":2}],5:[function(require,module,exports){
+},{"./StateContainer":7}],10:[function(require,module,exports){
 "use strict";Object.defineProperty(exports,"__esModule",{value:true});exports.createBackoff=createBackoff;var backoff={exponential:function exponential(attempt,delay){return Math.floor(Math.random()*Math.pow(2,attempt)*delay);},fibonacci:function fibonacci(attempt,delay){var current=1;if(attempt>current){var prev=1,current=2;for(var index=2;index<attempt;index++){var next=prev+current;prev=current;current=next;}}return Math.floor(Math.random()*current*delay);}};function createBackoff(type,options){return new Backoff(backoff[type],options);}function Backoff(func,options){this.func=func;this.attempts=0;this.delay=typeof options.initialDelay!=="undefined"?options.initialDelay:100;}Backoff.prototype.backoff=function(){setTimeout(this.onReady,this.func(++this.attempts,this.delay));};
-},{}],6:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 'use strict';Object.defineProperty(exports,"__esModule",{value:true});var _createClass=function(){function defineProperties(target,props){for(var i=0;i<props.length;i++){var descriptor=props[i];descriptor.enumerable=descriptor.enumerable||false;descriptor.configurable=true;if("value"in descriptor)descriptor.writable=true;Object.defineProperty(target,descriptor.key,descriptor);}}return function(Constructor,protoProps,staticProps){if(protoProps)defineProperties(Constructor.prototype,protoProps);if(staticProps)defineProperties(Constructor,staticProps);return Constructor;};}();function _classCallCheck(instance,Constructor){if(!(instance instanceof Constructor)){throw new TypeError("Cannot call a class as a function");}}var createBackoff=require('./backoff').createBackoff;var WebSocketClient=function(){/**
    * @param url DOMString The URL to which to connect; this should be the URL to which the WebSocket server will respond.
    * @param protocols DOMString|DOMString[] Either a single protocol string or an array of protocol strings. These strings are used to indicate sub-protocols, so that a single server can implement multiple WebSocket sub-protocols (for example, you might want one server to be able to handle different types of interactions depending on the specified protocol). If you don't specify a protocol string, an empty string is assumed.
-   */function WebSocketClient(url,protocols){var options=arguments.length>2&&arguments[2]!==undefined?arguments[2]:{};_classCallCheck(this,WebSocketClient);this.url=url;this.protocols=protocols;this.reconnectEnabled=true;this.listeners={};this.backoff=createBackoff(options.backoff||'exponential',options);this.backoff.onReady=this.onBackoffReady.bind(this);this.open();}_createClass(WebSocketClient,[{key:'open',value:function open(){var reconnect=arguments.length>0&&arguments[0]!==undefined?arguments[0]:false;this.isReconnect=reconnect;// keep binaryType used on previous WebSocket connection
+   */function WebSocketClient(url,protocols){var options=arguments.length>2&&arguments[2]!==undefined?arguments[2]:{};_classCallCheck(this,WebSocketClient);this.url=url;this.protocols=protocols;this.reconnectEnabled=true;this.listeners={};this.backoff=createBackoff(options.backoff||'exponential',options);this.backoff.onReady=this.onBackoffReady.bind(this);if(typeof options.connect==="undefined"||options.connect){this.open();}}_createClass(WebSocketClient,[{key:'open',value:function open(){var reconnect=arguments.length>0&&arguments[0]!==undefined?arguments[0]:false;this.isReconnect=reconnect;// keep binaryType used on previous WebSocket connection
 var binaryType=this.ws&&this.ws.binaryType;this.ws=new WebSocket(this.url,this.protocols);this.ws.onclose=this.onCloseCallback.bind(this);this.ws.onerror=this.onErrorCallback.bind(this);this.ws.onmessage=this.onMessageCallback.bind(this);this.ws.onopen=this.onOpenCallback.bind(this);if(binaryType){this.ws.binaryType=binaryType;}}/**
    * @ignore
    */},{key:'onBackoffReady',value:function onBackoffReady(number,delay){// console.log("onBackoffReady", number + ' ' + delay + 'ms');
@@ -314,7 +762,7 @@ this.open(true);}/**
  */WebSocketClient.CLOSING=WebSocket.CLOSING;/**
  * The connection is closed or couldn't be opened.
  */WebSocketClient.CLOSED=WebSocket.CLOSED;exports.default=WebSocketClient;
-},{"./backoff":5}],7:[function(require,module,exports){
+},{"./backoff":10}],12:[function(require,module,exports){
 'use strict'
 
 exports.byteLength = byteLength
@@ -467,7 +915,7 @@ function fromByteArray (uint8) {
   return parts.join('')
 }
 
-},{}],8:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 /*!
  * The buffer module from node.js, for the browser.
  *
@@ -516,7 +964,7 @@ function typedArraySupport () {
   // Can typed array instances can be augmented?
   try {
     var arr = new Uint8Array(1)
-    arr.__proto__ = {__proto__: Uint8Array.prototype, foo: function () { return 42 }}
+    arr.__proto__ = { __proto__: Uint8Array.prototype, foo: function () { return 42 } }
     return arr.foo() === 42
   } catch (e) {
     return false
@@ -524,26 +972,24 @@ function typedArraySupport () {
 }
 
 Object.defineProperty(Buffer.prototype, 'parent', {
+  enumerable: true,
   get: function () {
-    if (!(this instanceof Buffer)) {
-      return undefined
-    }
+    if (!Buffer.isBuffer(this)) return undefined
     return this.buffer
   }
 })
 
 Object.defineProperty(Buffer.prototype, 'offset', {
+  enumerable: true,
   get: function () {
-    if (!(this instanceof Buffer)) {
-      return undefined
-    }
+    if (!Buffer.isBuffer(this)) return undefined
     return this.byteOffset
   }
 })
 
 function createBuffer (length) {
   if (length > K_MAX_LENGTH) {
-    throw new RangeError('Invalid typed array length')
+    throw new RangeError('The value "' + length + '" is invalid for option "size"')
   }
   // Return an augmented `Uint8Array` instance
   var buf = new Uint8Array(length)
@@ -565,8 +1011,8 @@ function Buffer (arg, encodingOrOffset, length) {
   // Common case.
   if (typeof arg === 'number') {
     if (typeof encodingOrOffset === 'string') {
-      throw new Error(
-        'If encoding is specified then the first argument must be a string'
+      throw new TypeError(
+        'The "string" argument must be of type string. Received type number'
       )
     }
     return allocUnsafe(arg)
@@ -575,7 +1021,7 @@ function Buffer (arg, encodingOrOffset, length) {
 }
 
 // Fix subarray() in ES2016. See: https://github.com/feross/buffer/pull/97
-if (typeof Symbol !== 'undefined' && Symbol.species &&
+if (typeof Symbol !== 'undefined' && Symbol.species != null &&
     Buffer[Symbol.species] === Buffer) {
   Object.defineProperty(Buffer, Symbol.species, {
     value: null,
@@ -588,19 +1034,51 @@ if (typeof Symbol !== 'undefined' && Symbol.species &&
 Buffer.poolSize = 8192 // not used by this implementation
 
 function from (value, encodingOrOffset, length) {
-  if (typeof value === 'number') {
-    throw new TypeError('"value" argument must not be a number')
-  }
-
-  if (isArrayBuffer(value) || (value && isArrayBuffer(value.buffer))) {
-    return fromArrayBuffer(value, encodingOrOffset, length)
-  }
-
   if (typeof value === 'string') {
     return fromString(value, encodingOrOffset)
   }
 
-  return fromObject(value)
+  if (ArrayBuffer.isView(value)) {
+    return fromArrayLike(value)
+  }
+
+  if (value == null) {
+    throw TypeError(
+      'The first argument must be one of type string, Buffer, ArrayBuffer, Array, ' +
+      'or Array-like Object. Received type ' + (typeof value)
+    )
+  }
+
+  if (isInstance(value, ArrayBuffer) ||
+      (value && isInstance(value.buffer, ArrayBuffer))) {
+    return fromArrayBuffer(value, encodingOrOffset, length)
+  }
+
+  if (typeof value === 'number') {
+    throw new TypeError(
+      'The "value" argument must not be of type number. Received type number'
+    )
+  }
+
+  var valueOf = value.valueOf && value.valueOf()
+  if (valueOf != null && valueOf !== value) {
+    return Buffer.from(valueOf, encodingOrOffset, length)
+  }
+
+  var b = fromObject(value)
+  if (b) return b
+
+  if (typeof Symbol !== 'undefined' && Symbol.toPrimitive != null &&
+      typeof value[Symbol.toPrimitive] === 'function') {
+    return Buffer.from(
+      value[Symbol.toPrimitive]('string'), encodingOrOffset, length
+    )
+  }
+
+  throw new TypeError(
+    'The first argument must be one of type string, Buffer, ArrayBuffer, Array, ' +
+    'or Array-like Object. Received type ' + (typeof value)
+  )
 }
 
 /**
@@ -624,7 +1102,7 @@ function assertSize (size) {
   if (typeof size !== 'number') {
     throw new TypeError('"size" argument must be of type number')
   } else if (size < 0) {
-    throw new RangeError('"size" argument must not be negative')
+    throw new RangeError('The value "' + size + '" is invalid for option "size"')
   }
 }
 
@@ -739,20 +1217,16 @@ function fromObject (obj) {
     return buf
   }
 
-  if (obj) {
-    if (ArrayBuffer.isView(obj) || 'length' in obj) {
-      if (typeof obj.length !== 'number' || numberIsNaN(obj.length)) {
-        return createBuffer(0)
-      }
-      return fromArrayLike(obj)
+  if (obj.length !== undefined) {
+    if (typeof obj.length !== 'number' || numberIsNaN(obj.length)) {
+      return createBuffer(0)
     }
-
-    if (obj.type === 'Buffer' && Array.isArray(obj.data)) {
-      return fromArrayLike(obj.data)
-    }
+    return fromArrayLike(obj)
   }
 
-  throw new TypeError('The first argument must be one of type string, Buffer, ArrayBuffer, Array, or Array-like Object.')
+  if (obj.type === 'Buffer' && Array.isArray(obj.data)) {
+    return fromArrayLike(obj.data)
+  }
 }
 
 function checked (length) {
@@ -773,12 +1247,17 @@ function SlowBuffer (length) {
 }
 
 Buffer.isBuffer = function isBuffer (b) {
-  return b != null && b._isBuffer === true
+  return b != null && b._isBuffer === true &&
+    b !== Buffer.prototype // so Buffer.isBuffer(Buffer.prototype) will be false
 }
 
 Buffer.compare = function compare (a, b) {
+  if (isInstance(a, Uint8Array)) a = Buffer.from(a, a.offset, a.byteLength)
+  if (isInstance(b, Uint8Array)) b = Buffer.from(b, b.offset, b.byteLength)
   if (!Buffer.isBuffer(a) || !Buffer.isBuffer(b)) {
-    throw new TypeError('Arguments must be Buffers')
+    throw new TypeError(
+      'The "buf1", "buf2" arguments must be one of type Buffer or Uint8Array'
+    )
   }
 
   if (a === b) return 0
@@ -839,7 +1318,7 @@ Buffer.concat = function concat (list, length) {
   var pos = 0
   for (i = 0; i < list.length; ++i) {
     var buf = list[i]
-    if (ArrayBuffer.isView(buf)) {
+    if (isInstance(buf, Uint8Array)) {
       buf = Buffer.from(buf)
     }
     if (!Buffer.isBuffer(buf)) {
@@ -855,15 +1334,19 @@ function byteLength (string, encoding) {
   if (Buffer.isBuffer(string)) {
     return string.length
   }
-  if (ArrayBuffer.isView(string) || isArrayBuffer(string)) {
+  if (ArrayBuffer.isView(string) || isInstance(string, ArrayBuffer)) {
     return string.byteLength
   }
   if (typeof string !== 'string') {
-    string = '' + string
+    throw new TypeError(
+      'The "string" argument must be one of type string, Buffer, or ArrayBuffer. ' +
+      'Received type ' + typeof string
+    )
   }
 
   var len = string.length
-  if (len === 0) return 0
+  var mustMatch = (arguments.length > 2 && arguments[2] === true)
+  if (!mustMatch && len === 0) return 0
 
   // Use a for loop to avoid recursion
   var loweredCase = false
@@ -875,7 +1358,6 @@ function byteLength (string, encoding) {
         return len
       case 'utf8':
       case 'utf-8':
-      case undefined:
         return utf8ToBytes(string).length
       case 'ucs2':
       case 'ucs-2':
@@ -887,7 +1369,9 @@ function byteLength (string, encoding) {
       case 'base64':
         return base64ToBytes(string).length
       default:
-        if (loweredCase) return utf8ToBytes(string).length // assume utf8
+        if (loweredCase) {
+          return mustMatch ? -1 : utf8ToBytes(string).length // assume utf8
+        }
         encoding = ('' + encoding).toLowerCase()
         loweredCase = true
     }
@@ -1034,16 +1518,20 @@ Buffer.prototype.equals = function equals (b) {
 Buffer.prototype.inspect = function inspect () {
   var str = ''
   var max = exports.INSPECT_MAX_BYTES
-  if (this.length > 0) {
-    str = this.toString('hex', 0, max).match(/.{2}/g).join(' ')
-    if (this.length > max) str += ' ... '
-  }
+  str = this.toString('hex', 0, max).replace(/(.{2})/g, '$1 ').trim()
+  if (this.length > max) str += ' ... '
   return '<Buffer ' + str + '>'
 }
 
 Buffer.prototype.compare = function compare (target, start, end, thisStart, thisEnd) {
+  if (isInstance(target, Uint8Array)) {
+    target = Buffer.from(target, target.offset, target.byteLength)
+  }
   if (!Buffer.isBuffer(target)) {
-    throw new TypeError('Argument must be a Buffer')
+    throw new TypeError(
+      'The "target" argument must be one of type Buffer or Uint8Array. ' +
+      'Received type ' + (typeof target)
+    )
   }
 
   if (start === undefined) {
@@ -1122,7 +1610,7 @@ function bidirectionalIndexOf (buffer, val, byteOffset, encoding, dir) {
   } else if (byteOffset < -0x80000000) {
     byteOffset = -0x80000000
   }
-  byteOffset = +byteOffset  // Coerce to Number.
+  byteOffset = +byteOffset // Coerce to Number.
   if (numberIsNaN(byteOffset)) {
     // byteOffset: it it's undefined, null, NaN, "foo", etc, search whole buffer
     byteOffset = dir ? 0 : (buffer.length - 1)
@@ -1374,8 +1862,8 @@ function utf8Slice (buf, start, end) {
     var codePoint = null
     var bytesPerSequence = (firstByte > 0xEF) ? 4
       : (firstByte > 0xDF) ? 3
-      : (firstByte > 0xBF) ? 2
-      : 1
+        : (firstByte > 0xBF) ? 2
+          : 1
 
     if (i + bytesPerSequence <= end) {
       var secondByte, thirdByte, fourthByte, tempCodePoint
@@ -2038,7 +2526,7 @@ Buffer.prototype.fill = function fill (val, start, end, encoding) {
   } else {
     var bytes = Buffer.isBuffer(val)
       ? val
-      : new Buffer(val, encoding)
+      : Buffer.from(val, encoding)
     var len = bytes.length
     if (len === 0) {
       throw new TypeError('The value "' + val +
@@ -2193,66 +2681,49 @@ function blitBuffer (src, dst, offset, length) {
   return i
 }
 
-// ArrayBuffers from another context (i.e. an iframe) do not pass the `instanceof` check
-// but they should be treated as valid. See: https://github.com/feross/buffer/issues/166
-function isArrayBuffer (obj) {
-  return obj instanceof ArrayBuffer ||
-    (obj != null && obj.constructor != null && obj.constructor.name === 'ArrayBuffer' &&
-      typeof obj.byteLength === 'number')
+// ArrayBuffer or Uint8Array objects from other contexts (i.e. iframes) do not pass
+// the `instanceof` check but they should be treated as of that type.
+// See: https://github.com/feross/buffer/issues/166
+function isInstance (obj, type) {
+  return obj instanceof type ||
+    (obj != null && obj.constructor != null && obj.constructor.name != null &&
+      obj.constructor.name === type.name)
 }
-
 function numberIsNaN (obj) {
+  // For IE11 support
   return obj !== obj // eslint-disable-line no-self-compare
 }
 
-},{"base64-js":7,"ieee754":17}],9:[function(require,module,exports){
+},{"base64-js":12,"ieee754":25}],14:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-var msgpack = require("notepack.io");
-var signals_js_1 = require("signals.js");
+var signals_1 = require("@gamestdio/signals");
+var msgpack = require("./msgpack");
 var Connection_1 = require("./Connection");
 var Protocol_1 = require("./Protocol");
 var Room_1 = require("./Room");
+var Storage_1 = require("./Storage");
 var Client = /** @class */ (function () {
     function Client(url) {
         var _this = this;
         // signals
-        this.onOpen = new signals_js_1.Signal();
-        this.onMessage = new signals_js_1.Signal();
-        this.onClose = new signals_js_1.Signal();
-        this.onError = new signals_js_1.Signal();
+        this.onOpen = new signals_1.Signal();
+        this.onMessage = new signals_1.Signal();
+        this.onClose = new signals_1.Signal();
+        this.onError = new signals_1.Signal();
         this.rooms = {};
         this.connectingRooms = {};
         this.requestId = 0;
-        this.storage = (typeof (cc) !== "undefined" && cc.sys && cc.sys.localStorage)
-            ? cc.sys.localStorage // compatibility with cocos creator
-            : window.localStorage; // regular browser environment
         this.roomsAvailableRequests = {};
         this.hostname = url;
-        var colyseusid = this.storage.getItem('colyseusid');
-        if (typeof (Promise) === 'undefined' || // old browsers
-            !(colyseusid instanceof Promise)) {
-            // browser has synchronous return
-            this.connect(colyseusid);
-        }
-        else {
-            // react-native is asynchronous
-            colyseusid.then(function (id) { return _this.connect(id); });
-        }
+        Storage_1.getItem('colyseusid', function (colyseusid) { return _this.connect(colyseusid); });
     }
     Client.prototype.join = function (roomName, options) {
-        var _this = this;
         if (options === void 0) { options = {}; }
-        options.requestId = ++this.requestId;
-        var room = new Room_1.Room(roomName, options);
-        // remove references on leaving
-        room.onLeave.addOnce(function () {
-            delete _this.rooms[room.id];
-            delete _this.connectingRooms[options.requestId];
-        });
-        this.connectingRooms[options.requestId] = room;
-        this.connection.send([Protocol_1.Protocol.JOIN_ROOM, roomName, options]);
-        return room;
+        return this.createRoomRequest(roomName, options);
+    };
+    Client.prototype.rejoin = function (roomName, sessionId) {
+        return this.join(roomName, { sessionId: sessionId });
     };
     Client.prototype.getAvailableRooms = function (roomName, callback) {
         var _this = this;
@@ -2274,10 +2745,41 @@ var Client = /** @class */ (function () {
     Client.prototype.close = function () {
         this.connection.close();
     };
+    Client.prototype.createRoom = function (roomName, options) {
+        if (options === void 0) { options = {}; }
+        return new Room_1.Room(roomName, options);
+    };
+    Client.prototype.createRoomRequest = function (roomName, options, reuseRoomInstance, retryCount) {
+        var _this = this;
+        options.requestId = ++this.requestId;
+        var room = reuseRoomInstance || this.createRoom(roomName, options);
+        // remove references on leaving
+        room.onLeave.addOnce(function () {
+            delete _this.rooms[room.id];
+            delete _this.connectingRooms[options.requestId];
+        });
+        //
+        // retry joining the room in case the server couldn't matchmake into it
+        //
+        // TODO: improve match-making routine https://github.com/gamestdio/colyseus/issues/176
+        //
+        if (options.retryTimes) {
+            room.onError.addOnce(function () {
+                retryCount = retryCount || 0;
+                if (!room.hasJoined && retryCount <= options.retryTimes) {
+                    retryCount++;
+                    _this.createRoomRequest(roomName, options, room, retryCount);
+                }
+            });
+        }
+        this.connectingRooms[options.requestId] = room;
+        this.connection.send([Protocol_1.Protocol.JOIN_ROOM, roomName, options]);
+        return room;
+    };
     Client.prototype.connect = function (colyseusid) {
         var _this = this;
         this.id = colyseusid || '';
-        this.connection = this.createConnection();
+        this.connection = new Connection_1.Connection(this.buildEndpoint());
         this.connection.onmessage = this.onMessageCallback.bind(this);
         this.connection.onclose = function (e) { return _this.onClose.dispatch(e); };
         this.connection.onerror = function (e) { return _this.onError.dispatch(e); };
@@ -2288,7 +2790,7 @@ var Client = /** @class */ (function () {
             }
         };
     };
-    Client.prototype.createConnection = function (path, options) {
+    Client.prototype.buildEndpoint = function (path, options) {
         if (path === void 0) { path = ''; }
         if (options === void 0) { options = {}; }
         // append colyseusid to connection string.
@@ -2299,7 +2801,7 @@ var Client = /** @class */ (function () {
             }
             params.push(name_1 + "=" + options[name_1]);
         }
-        return new Connection_1.Connection(this.hostname + "/" + path + "?" + params.join('&'));
+        return this.hostname + "/" + path + "?" + params.join('&');
     };
     /**
      * @override
@@ -2308,7 +2810,7 @@ var Client = /** @class */ (function () {
         var message = msgpack.decode(new Uint8Array(event.data));
         var code = message[0];
         if (code === Protocol_1.Protocol.USER_ID) {
-            this.storage.setItem('colyseusid', message[1]);
+            Storage_1.setItem('colyseusid', message[1]);
             this.id = message[1];
             this.onOpen.dispatch();
         }
@@ -2319,9 +2821,9 @@ var Client = /** @class */ (function () {
                 console.warn('colyseus.js: client left room before receiving session id.');
                 return;
             }
-            this.rooms[room.id] = room;
             room.id = message[1];
-            room.connect(this.createConnection(room.id, room.options));
+            this.rooms[room.id] = room;
+            room.connect(this.buildEndpoint(room.id, room.options));
             delete this.connectingRooms[requestId];
         }
         else if (code === Protocol_1.Protocol.JOIN_ERROR) {
@@ -2345,7 +2847,7 @@ var Client = /** @class */ (function () {
 }());
 exports.Client = Client;
 
-},{"./Connection":10,"./Protocol":11,"./Room":12,"notepack.io":20,"signals.js":21}],10:[function(require,module,exports){
+},{"./Connection":15,"./Protocol":16,"./Room":17,"./Storage":18,"./msgpack":21,"@gamestdio/signals":6}],15:[function(require,module,exports){
 "use strict";
 var __extends = (this && this.__extends) || (function () {
     var extendStatics = Object.setPrototypeOf ||
@@ -2359,23 +2861,25 @@ var __extends = (this && this.__extends) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 var websocket_1 = require("@gamestdio/websocket");
-var msgpack = require("notepack.io");
+var msgpack = require("./msgpack");
 var Connection = /** @class */ (function (_super) {
     __extends(Connection, _super);
-    function Connection(url, query) {
-        if (query === void 0) { query = {}; }
-        var _this = _super.call(this, url) || this;
+    function Connection(url, autoConnect) {
+        if (autoConnect === void 0) { autoConnect = true; }
+        var _this = _super.call(this, url, undefined, { connect: autoConnect }) || this;
         _this._enqueuedCalls = [];
-        _this.binaryType = 'arraybuffer';
         return _this;
     }
     Connection.prototype.onOpenCallback = function (event) {
         _super.prototype.onOpenCallback.call(this);
+        this.binaryType = 'arraybuffer';
         if (this._enqueuedCalls.length > 0) {
             for (var _i = 0, _a = this._enqueuedCalls; _i < _a.length; _i++) {
                 var _b = _a[_i], method = _b[0], args = _b[1];
                 this[method].apply(this, args);
             }
+            // clear enqueued calls.
+            this._enqueuedCalls = [];
         }
     };
     Connection.prototype.send = function (data) {
@@ -2383,7 +2887,6 @@ var Connection = /** @class */ (function (_super) {
             return _super.prototype.send.call(this, msgpack.encode(data));
         }
         else {
-            console.warn("colyseus.js: trying to send data while in " + this.ws.readyState + " state");
             // WebSocket not connected.
             // Enqueue data to be sent when readyState == OPEN
             this._enqueuedCalls.push(['send', [data]]);
@@ -2393,7 +2896,7 @@ var Connection = /** @class */ (function (_super) {
 }(websocket_1.default));
 exports.Connection = Connection;
 
-},{"@gamestdio/websocket":6,"notepack.io":20}],11:[function(require,module,exports){
+},{"./msgpack":21,"@gamestdio/websocket":11}],16:[function(require,module,exports){
 "use strict";
 // Use codes between 0~127 for lesser throughput (1 byte)
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -2414,7 +2917,7 @@ var Protocol;
     Protocol[Protocol["BAD_REQUEST"] = 50] = "BAD_REQUEST";
 })(Protocol = exports.Protocol || (exports.Protocol = {}));
 
-},{}],12:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 (function (Buffer){
 "use strict";
 var __extends = (this && this.__extends) || (function () {
@@ -2429,10 +2932,11 @@ var __extends = (this && this.__extends) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 var Clock = require("@gamestdio/clock");
-var signals_js_1 = require("signals.js");
+var signals_1 = require("@gamestdio/signals");
 var state_listener_1 = require("@gamestdio/state-listener");
 var fossilDelta = require("fossil-delta");
-var msgpack = require("notepack.io");
+var msgpack = require("./msgpack");
+var Connection_1 = require("./Connection");
 var Protocol_1 = require("./Protocol");
 var Room = /** @class */ (function (_super) {
     __extends(Room, _super);
@@ -2441,20 +2945,21 @@ var Room = /** @class */ (function (_super) {
         _this.clock = new Clock(); // experimental
         _this.remoteClock = new Clock(); // experimental
         // Public signals
-        _this.onJoin = new signals_js_1.Signal();
-        _this.onStateChange = new signals_js_1.Signal();
-        _this.onMessage = new signals_js_1.Signal();
-        _this.onError = new signals_js_1.Signal();
-        _this.onLeave = new signals_js_1.Signal();
+        _this.onJoin = new signals_1.Signal();
+        _this.onStateChange = new signals_1.Signal();
+        _this.onMessage = new signals_1.Signal();
+        _this.onError = new signals_1.Signal();
+        _this.onLeave = new signals_1.Signal();
         _this.id = null;
         _this.name = name;
         _this.options = options;
+        _this.connection = new Connection_1.Connection(undefined, false);
         _this.onLeave.add(function () { return _this.removeAllListeners(); });
         return _this;
     }
-    Room.prototype.connect = function (connection) {
+    Room.prototype.connect = function (endpoint) {
         var _this = this;
-        this.connection = connection;
+        this.connection.url = endpoint;
         this.connection.reconnectEnabled = false;
         this.connection.onmessage = this.onMessageCallback.bind(this);
         this.connection.onclose = function (e) { return _this.onLeave.dispatch(e); };
@@ -2462,10 +2967,11 @@ var Room = /** @class */ (function (_super) {
             console.warn("Possible causes: room's onAuth() failed or maxClients has been reached.");
             _this.onError.dispatch(e);
         };
+        this.connection.open();
     };
     Room.prototype.leave = function () {
         if (this.connection) {
-            this.connection.close();
+            this.connection.send([Protocol_1.Protocol.LEAVE_ROOM]);
         }
         else {
             this.onLeave.dispatch();
@@ -2474,6 +2980,13 @@ var Room = /** @class */ (function (_super) {
     Room.prototype.send = function (data) {
         this.connection.send([Protocol_1.Protocol.ROOM_DATA, this.id, data]);
     };
+    Object.defineProperty(Room.prototype, "hasJoined", {
+        get: function () {
+            return this.sessionId !== undefined;
+        },
+        enumerable: true,
+        configurable: true
+    });
     Room.prototype.removeAllListeners = function () {
         _super.prototype.removeAllListeners.call(this);
         this.onJoin.removeAll();
@@ -2533,9 +3046,41 @@ var Room = /** @class */ (function (_super) {
 exports.Room = Room;
 
 }).call(this,require("buffer").Buffer)
-},{"./Protocol":11,"@gamestdio/clock":1,"@gamestdio/state-listener":4,"buffer":8,"fossil-delta":16,"notepack.io":20,"signals.js":21}],13:[function(require,module,exports){
+},{"./Connection":15,"./Protocol":16,"./msgpack":21,"@gamestdio/clock":1,"@gamestdio/signals":6,"@gamestdio/state-listener":9,"buffer":13,"fossil-delta":24}],18:[function(require,module,exports){
+"use strict";
+/**
+ * We do not assign 'storage' to window.localStorage immediatelly for React
+ * Native compatibility. window.localStorage is not present when this module is
+ * loaded.
+ */
+Object.defineProperty(exports, "__esModule", { value: true });
+function getStorage() {
+    return (typeof (cc) !== 'undefined' && cc.sys && cc.sys.localStorage)
+        ? cc.sys.localStorage // compatibility with cocos creator
+        : window.localStorage; // regular browser environment
+}
+function setItem(key, value) {
+    getStorage().setItem(key, value);
+}
+exports.setItem = setItem;
+function getItem(key, callback) {
+    var value = getStorage().getItem(key);
+    if (typeof (Promise) === 'undefined' || // old browsers
+        !(value instanceof Promise)) {
+        // browser has synchronous return
+        callback(value);
+    }
+    else {
+        // react-native is asynchronous
+        value.then(function (id) { return callback(id); });
+    }
+}
+exports.getItem = getItem;
+
+},{}],19:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+require("./legacy");
 var Client_1 = require("./Client");
 exports.Client = Client_1.Client;
 var Protocol_1 = require("./Protocol");
@@ -2556,7 +3101,26 @@ exports.key = helpers_1.key;
 exports.room = helpers_1.room;
 exports.listen = helpers_1.listen;
 
-},{"./Client":9,"./Protocol":11,"./Room":12,"./sync/helpers":14}],14:[function(require,module,exports){
+},{"./Client":14,"./Protocol":16,"./Room":17,"./legacy":20,"./sync/helpers":22}],20:[function(require,module,exports){
+//
+// Polyfills for legacy environments
+//
+/*
+ * Support Android 4.4.x
+ */
+if (!ArrayBuffer.isView) {
+    ArrayBuffer.isView = function (a) {
+        return a !== null && typeof (a) === 'object' && a.buffer instanceof ArrayBuffer;
+    };
+}
+
+},{}],21:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.encode = require('notepack.io/browser/encode');
+exports.decode = require('notepack.io/browser/decode');
+
+},{"notepack.io/browser/decode":26,"notepack.io/browser/encode":27}],22:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var listeners = require("./listeners");
@@ -2696,7 +3260,7 @@ function bindListeners(listenersToBind, roomInstance, synchable) {
 }
 exports.bindListeners = bindListeners;
 
-},{"./listeners":15}],15:[function(require,module,exports){
+},{"./listeners":23}],23:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var helpers_1 = require("./helpers");
@@ -2804,7 +3368,7 @@ function varListener(room, property, synchable, synchableRoot, parentSegment) {
 }
 exports.varListener = varListener;
 
-},{"./helpers":14}],16:[function(require,module,exports){
+},{"./helpers":22}],24:[function(require,module,exports){
 // Fossil SCM delta compression algorithm
 // ======================================
 //
@@ -3256,7 +3820,7 @@ return fossilDelta;
 
 });
 
-},{}],17:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 exports.read = function (buffer, offset, isLE, mLen, nBytes) {
   var e, m
   var eLen = (nBytes * 8) - mLen - 1
@@ -3342,7 +3906,7 @@ exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
   buffer[offset + i - d] |= s * 128
 }
 
-},{}],18:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 'use strict';
 
 function Decoder(buffer) {
@@ -3368,7 +3932,7 @@ function utf8Read(view, offset, length) {
     }
     if ((byte & 0xe0) === 0xc0) {
       string += String.fromCharCode(
-        ((byte & 0x0f) << 6) |
+        ((byte & 0x1f) << 6) |
         (view.getUint8(++i) & 0x3f)
       );
       continue;
@@ -3625,7 +4189,7 @@ function decode(buffer) {
 
 module.exports = decode;
 
-},{}],19:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 'use strict';
 
 function utf8Write(view, offset, str) {
@@ -3932,1146 +4496,5 @@ function encode(value) {
 
 module.exports = encode;
 
-},{}],20:[function(require,module,exports){
-exports.encode = require('./encode');
-exports.decode = require('./decode');
-
-},{"./decode":18,"./encode":19}],21:[function(require,module,exports){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-var DeluxeSignal_1 = require("./org/osflash/signals/DeluxeSignal");
-exports.DeluxeSignal = DeluxeSignal_1.DeluxeSignal;
-var GenericEvent_1 = require("./org/osflash/signals/events/GenericEvent");
-exports.GenericEvent = GenericEvent_1.GenericEvent;
-var IOnceSignal_1 = require("./org/osflash/signals/IOnceSignal");
-exports.IOnceSignal = IOnceSignal_1.IOnceSignal;
-var IPrioritySignal_1 = require("./org/osflash/signals/IPrioritySignal");
-exports.IPrioritySignal = IPrioritySignal_1.IPrioritySignal;
-var ISignal_1 = require("./org/osflash/signals/ISignal");
-exports.ISignal = ISignal_1.ISignal;
-var ISlot_1 = require("./org/osflash/signals/ISlot");
-exports.ISlot = ISlot_1.ISlot;
-var MonoSignal_1 = require("./org/osflash/signals/MonoSignal");
-exports.MonoSignal = MonoSignal_1.MonoSignal;
-var OnceSignal_1 = require("./org/osflash/signals/OnceSignal");
-exports.OnceSignal = OnceSignal_1.OnceSignal;
-var PrioritySignal_1 = require("./org/osflash/signals/PrioritySignal");
-exports.PrioritySignal = PrioritySignal_1.PrioritySignal;
-var Promise_1 = require("./org/osflash/signals/Promise");
-exports.Promise = Promise_1.Promise;
-var Signal_1 = require("./org/osflash/signals/Signal");
-exports.Signal = Signal_1.Signal;
-var Slot_1 = require("./org/osflash/signals/Slot");
-exports.Slot = Slot_1.Slot;
-var SlotList_1 = require("./org/osflash/signals/SlotList");
-exports.SlotList = SlotList_1.SlotList;
-
-},{"./org/osflash/signals/DeluxeSignal":22,"./org/osflash/signals/IOnceSignal":23,"./org/osflash/signals/IPrioritySignal":24,"./org/osflash/signals/ISignal":25,"./org/osflash/signals/ISlot":26,"./org/osflash/signals/MonoSignal":27,"./org/osflash/signals/OnceSignal":28,"./org/osflash/signals/PrioritySignal":29,"./org/osflash/signals/Promise":30,"./org/osflash/signals/Signal":31,"./org/osflash/signals/Slot":32,"./org/osflash/signals/SlotList":33,"./org/osflash/signals/events/GenericEvent":34}],22:[function(require,module,exports){
-"use strict";
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = Object.setPrototypeOf ||
-        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-Object.defineProperty(exports, "__esModule", { value: true });
-var PrioritySignal_1 = require("./PrioritySignal");
-/**
- * Allows the valueClasses to be set in MXML, e.g.
- * <signals:Signal id="nameChanged">{[String, uint]}</signals:Signal>
- */
-/*[DefaultProperty("valueClasses")]*/
-/**
- * Signal dispatches events to multiple listeners.
- * It is inspired by C# events and delegates, and by
- * <a target="_top" href="http://en.wikipedia.org/wiki/Signals_and_slots">signals and slots</a>
- * in Qt.
- * A Signal adds event dispatching functionality through composition and interfaces,
- * rather than inheriting from a dispatcher.
- * <br/><br/>
- * Project home: <a target="_top" href="http://github.com/robertpenner/as3-signals/">http://github.com/robertpenner/as3-signals/</a>
- */
-var DeluxeSignal = (function (_super) {
-    __extends(DeluxeSignal, _super);
-    /**
-     * Creates a DeluxeSignal instance to dispatch events on behalf of a target object.
-     * @param    target The object the signal is dispatching events on behalf of.
-     * @param    valueClasses Any number of class references that enable type checks in dispatch().
-     * For example, new DeluxeSignal(this, String, uint)
-     * would allow: signal.dispatch("the Answer", 42)
-     * but not: signal.dispatch(true, 42.5)
-     * nor: signal.dispatch()
-     *
-     * NOTE: Subclasses cannot call super.apply(null, valueClasses),
-     * but this constructor has logic to support super(valueClasses).
-     */
-    function DeluxeSignal(target) {
-        if (target === void 0) { target = null; }
-        var valueClasses = [];
-        for (var _i = 1; _i < arguments.length; _i++) {
-            valueClasses[_i - 1] = arguments[_i];
-        }
-        var _this = this;
-        // Cannot use super.apply(null, valueClasses), so allow the subclass to call super(valueClasses).
-        valueClasses = (valueClasses.length == 1 && valueClasses[0] instanceof Array) ? valueClasses[0] : valueClasses;
-        _this = _super.call(this, valueClasses) || this;
-        //@CHANGED - this was the first call in the constructor
-        //Typescript does not allow "this" to be called before super
-        _this._target = target;
-        return _this;
-    }
-    Object.defineProperty(DeluxeSignal.prototype, "target", {
-        /** @inheritDoc */
-        get: function () {
-            return this._target;
-        },
-        set: function (value) {
-            if (value == this._target)
-                return;
-            this.removeAll();
-            this._target = value;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    /**
-     * @inheritDoc
-     * @throws ArgumentError <code>ArgumentError</code>: Incorrect number of arguments.
-     * @throws ArgumentError <code>ArgumentError</code>: Value object is not an instance of the appropriate valueClasses Class.
-     */
-    /*override*/
-    DeluxeSignal.prototype.dispatch = function () {
-        var valueObjects = [];
-        for (var _i = 0; _i < arguments.length; _i++) {
-            valueObjects[_i] = arguments[_i];
-        }
-        // Validate value objects against pre-defined value classes.
-        var numValueClasses = this._valueClasses.length;
-        var numValueObjects = valueObjects.length;
-        if (numValueObjects < numValueClasses) {
-            throw new Error('Incorrect number of arguments. ' +
-                'Expected at least ' + numValueClasses + ' but received ' +
-                numValueObjects + '.');
-        }
-        // Cannot dispatch differently typed objects than declared classes.
-        for (var i = 0; i < numValueClasses; i++) {
-            // Optimized for the optimistic case that values are correct.
-            if (valueObjects[i] === null || valueObjects[i].constructor === this._valueClasses[i])
-                continue;
-            throw new Error('Value object <' + valueObjects[i]
-                + '> is not an instance of <' + this._valueClasses[i] + '>.');
-        }
-        // Extract and clone event object if necessary.
-        var event = valueObjects[0];
-        if (event) {
-            if (event.target) {
-                event = event.clone();
-                valueObjects[0] = event;
-            }
-            event.target = this.target;
-            event.currentTarget = this.target;
-            event.signal = this;
-        }
-        // Broadcast to listeners.
-        var slotsToProcess = this.slots;
-        while (slotsToProcess.nonEmpty) {
-            slotsToProcess.head.execute(valueObjects);
-            slotsToProcess = slotsToProcess.tail;
-        }
-        // Bubble the event as far as possible.
-        if (!event || !event.bubbles)
-            return;
-        var currentTarget = this.target;
-        while (currentTarget && currentTarget.hasOwnProperty("parent")) {
-            currentTarget = currentTarget["parent"];
-            if (!currentTarget)
-                break;
-            if (currentTarget.onEventBubbled !== undefined) {
-                event.currentTarget = currentTarget;
-                // onEventBubbled() can stop the bubbling by returning false.
-                if (currentTarget.onEventBubbled(event))
-                    break;
-            }
-        }
-    };
-    return DeluxeSignal;
-}(PrioritySignal_1.PrioritySignal));
-exports.DeluxeSignal = DeluxeSignal;
-
-},{"./PrioritySignal":29}],23:[function(require,module,exports){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-/**
- *
- */
-exports.IOnceSignal = Symbol("IOnceSignal");
-
-},{}],24:[function(require,module,exports){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-/**
- *
- */
-exports.IPrioritySignal = Symbol("IPrioritySignal");
-
-},{}],25:[function(require,module,exports){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-/**
- *
- */
-exports.ISignal = Symbol("ISignal");
-
-},{}],26:[function(require,module,exports){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-/**
- * The ISlot interface defines the basic properties of a
- * listener associated with a Signal.
- *
- * @author Joa Ebert
- * @author Robert Penner
- */
-exports.ISlot = Symbol("ISlot");
-
-},{}],27:[function(require,module,exports){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-var Slot_1 = require("./Slot");
-/**
- * Allows the valueClasses to be set in MXML, e.g.
- * <signals:Signal id="nameChanged">{[String, uint]}</signals:Signal>
- */
-/*[DefaultProperty("valueClasses")]*/
-/**
- * A MonoSignal can have only one listener.
- */
-var MonoSignal = (function () {
-    /**
-     * Creates a MonoSignal instance to dispatch value objects.
-     * @param    valueClasses Any number of class references that enable type checks in dispatch().
-     * For example, new Signal(String, uint)
-     * would allow: signal.dispatch("the Answer", 42)
-     * but not: signal.dispatch(true, 42.5)
-     * nor: signal.dispatch()
-     *
-     * NOTE: Subclasses cannot call super.apply(null, valueClasses),
-     * but this constructor has logic to support super(valueClasses).
-     */
-    function MonoSignal() {
-        var valueClasses = [];
-        for (var _i = 0; _i < arguments.length; _i++) {
-            valueClasses[_i] = arguments[_i];
-        }
-        // Cannot use super.apply(null, valueClasses), so allow the subclass to call super(valueClasses).
-        this.valueClasses = (valueClasses.length == 1 && valueClasses[0] instanceof Array) ? valueClasses[0] : valueClasses;
-    }
-    Object.defineProperty(MonoSignal.prototype, "valueClasses", {
-        /**
-         * @inheritDoc
-         * @throws ArgumentError <code>ArgumentError</code>: Invalid valueClasses argument: item at index should be a Class but was not.
-         */
-        /*[ArrayElementType("Class")]*/
-        get: function () {
-            return this._valueClasses;
-        },
-        set: function (value) {
-            // Clone so the Array cannot be affected from outside.
-            this._valueClasses = value ? value.slice() : [];
-            for (var i = this._valueClasses.length; i--;) {
-                if (!(this._valueClasses[i] instanceof Object)) {
-                    throw new Error('Invalid valueClasses argument: ' +
-                        'item at index ' + i + ' should be a Class but was:<' +
-                        this._valueClasses[i] + '>.' + this._valueClasses[i]); //@CHANGED - temp replacement for getQualifiedClassByName()
-                }
-            }
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(MonoSignal.prototype, "numListeners", {
-        /** @inheritDoc */
-        get: function () {
-            return this.slot ? 1 : 0;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    /**
-     * @inheritDoc
-     * @throws flash.errors.IllegalOperationError <code>IllegalOperationError</code>: You cannot add or addOnce with a listener already added, remove the current listener first.
-     * @throws ArgumentError <code>ArgumentError</code>: Given listener is <code>null</code>.
-     */
-    MonoSignal.prototype.add = function (listener) {
-        return this.registerListener(listener);
-    };
-    /**
-     * @inheritDoc
-     * @throws flash.errors.IllegalOperationError <code>IllegalOperationError</code>: You cannot add or addOnce with a listener already added, remove the current listener first.
-     * @throws ArgumentError <code>ArgumentError</code>: Given listener is <code>null</code>.
-     */
-    MonoSignal.prototype.addOnce = function (listener) {
-        return this.registerListener(listener, true);
-    };
-    /** @inheritDoc */
-    MonoSignal.prototype.remove = function (listener) {
-        if (this.slot && this.slot.listener == listener) {
-            var theSlot = this.slot;
-            this.slot = null;
-            return theSlot;
-        }
-        return null;
-    };
-    /** @inheritDoc */
-    MonoSignal.prototype.removeAll = function () {
-        if (this.slot)
-            this.slot.remove();
-    };
-    /**
-     * @inheritDoc
-     * @throws ArgumentError <code>ArgumentError</code>: Incorrect number of arguments.
-     * @throws ArgumentError <code>ArgumentError</code>: Value object is not an instance of the appropriate valueClasses Class.
-     */
-    MonoSignal.prototype.dispatch = function () {
-        var valueObjects = [];
-        for (var _i = 0; _i < arguments.length; _i++) {
-            valueObjects[_i] = arguments[_i];
-        }
-        // If valueClasses is empty, value objects are not type-checked.
-        var numValueClasses = this._valueClasses.length;
-        var numValueObjects = valueObjects.length;
-        // Cannot dispatch fewer objects than declared classes.
-        if (numValueObjects < numValueClasses) {
-            throw new Error('Incorrect number of arguments. ' +
-                'Expected at least ' + numValueClasses + ' but received ' +
-                numValueObjects + '.');
-        }
-        // Cannot dispatch differently typed objects than declared classes.
-        for (var i = 0; i < numValueClasses; i++) {
-            // Optimized for the optimistic case that values are correct.
-            if (valueObjects[i] === null ||
-                (valueObjects[i] instanceof this._valueClasses[i] || valueObjects[i].constructor === this._valueClasses[i])) {
-                continue;
-            }
-            throw new Error('Value object <' + valueObjects[i]
-                + '> is not an instance of <' + this._valueClasses[i] + '>.');
-        }
-        // Broadcast to the one listener.
-        if (this.slot) {
-            this.slot.execute(valueObjects);
-        }
-    };
-    MonoSignal.prototype.registerListener = function (listener, once) {
-        if (once === void 0) { once = false; }
-        if (this.slot) {
-            // If the listener exits previously added, definitely don't add it.
-            throw new Error('You cannot add or addOnce with a listener already added, remove the current listener first.');
-        }
-        return (this.slot = new Slot_1.Slot(listener, this, once));
-    };
-    return MonoSignal;
-}());
-exports.MonoSignal = MonoSignal;
-
-},{"./Slot":32}],28:[function(require,module,exports){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-var SlotList_1 = require("./SlotList");
-var Slot_1 = require("./Slot");
-/**
- * Allows the valueClasses to be set in MXML, e.g.
- * <signals:Signal id="nameChanged">{[String, uint]}</signals:Signal>
- */
-/*[DefaultProperty("valueClasses")]*/
-/**
- * Signal dispatches events to multiple listeners.
- * It is inspired by C# events and delegates, and by
- * <a target="_top" href="http://en.wikipedia.org/wiki/Signals_and_slots">signals and slots</a>
- * in Qt.
- * A Signal adds event dispatching functionality through composition and interfaces,
- * rather than inheriting from a dispatcher.
- * <br/><br/>
- * Project home: <a target="_top" href="http://github.com/robertpenner/as3-signals/">http://github.com/robertpenner/as3-signals/</a>
- */
-var OnceSignal = (function () {
-    /**
-     * Creates a Signal instance to dispatch value objects.
-     * @param    valueClasses Any number of class references that enable type checks in dispatch().
-     * For example, new Signal(String, uint)
-     * would allow: signal.dispatch("the Answer", 42)
-     * but not: signal.dispatch(true, 42.5)
-     * nor: signal.dispatch()
-     *
-     * NOTE: In AS3, subclasses cannot call super.apply(null, valueClasses),
-     * but this constructor has logic to support super(valueClasses).
-     */
-    function OnceSignal() {
-        var valueClasses = [];
-        for (var _i = 0; _i < arguments.length; _i++) {
-            valueClasses[_i] = arguments[_i];
-        }
-        this.slots = SlotList_1.SlotList.NIL;
-        // Cannot use super.apply(null, valueClasses), so allow the subclass to call super(valueClasses).
-        this.valueClasses = (valueClasses.length == 1 && valueClasses[0] instanceof Array) ? valueClasses[0] : valueClasses;
-    }
-    Object.defineProperty(OnceSignal.prototype, "valueClasses", {
-        /**
-         * @inheritDoc
-         * @throws ArgumentError <code>ArgumentError</code>: Invalid valueClasses argument: item at index should be a Class but was not.
-         */
-        /*[ArrayElementType("Class")]*/
-        get: function () {
-            return this._valueClasses;
-        },
-        set: function (value) {
-            // Clone so the Array cannot be affected from outside.
-            this._valueClasses = value ? value.slice() : [];
-            for (var i = this._valueClasses.length; i--;) {
-                if (!(this._valueClasses[i] instanceof Object)) {
-                    throw new Error('Invalid valueClasses argument: ' +
-                        'item at index ' + i + ' should be a Class but was:<' +
-                        this._valueClasses[i] + '>.' + this._valueClasses[i]); //@CHANGED - temp replacement for getQualifiedClassByName()
-                }
-            }
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(OnceSignal.prototype, "numListeners", {
-        /** @inheritDoc */
-        get: function () {
-            return this.slots.length;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    /**
-     * @inheritDoc
-     * @throws flash.errors.IllegalOperationError <code>IllegalOperationError</code>: You cannot addOnce() then add() the same listener without removing the relationship first.
-     * @throws ArgumentError <code>ArgumentError</code>: Given listener is <code>null</code>.
-     */
-    OnceSignal.prototype.addOnce = function (listener) {
-        return this.registerListener(listener, true);
-    };
-    /** @inheritDoc */
-    OnceSignal.prototype.remove = function (listener) {
-        var slot = this.slots.find(listener);
-        if (!slot)
-            return null;
-        this.slots = this.slots.filterNot(listener);
-        return slot;
-    };
-    /** @inheritDoc */
-    OnceSignal.prototype.removeAll = function () {
-        this.slots = SlotList_1.SlotList.NIL;
-    };
-    /**
-     * @inheritDoc
-     * @throws ArgumentError <code>ArgumentError</code>: Incorrect number of arguments.
-     * @throws ArgumentError <code>ArgumentError</code>: Value object is not an instance of the appropriate valueClasses Class.
-     */
-    OnceSignal.prototype.dispatch = function () {
-        var valueObjects = [];
-        for (var _i = 0; _i < arguments.length; _i++) {
-            valueObjects[_i] = arguments[_i];
-        }
-        // If valueClasses is empty, value objects are not type-checked.
-        var numValueClasses = this._valueClasses.length;
-        var numValueObjects = valueObjects.length;
-        // Cannot dispatch fewer objects than declared classes.
-        if (numValueObjects < numValueClasses) {
-            throw new Error('Incorrect number of arguments. ' +
-                'Expected at least ' + numValueClasses + ' but received ' +
-                numValueObjects + '.');
-        }
-        // Cannot dispatch differently typed objects than declared classes.
-        for (var i = 0; i < numValueClasses; i++) {
-            // Optimized for the optimistic case that values are correct.
-            if (valueObjects[i] === null ||
-                (valueObjects[i] instanceof this._valueClasses[i] || valueObjects[i].constructor === this._valueClasses[i])) {
-                continue;
-            }
-            throw new Error('Value object <' + valueObjects[i]
-                + '> is not an instance of <' + this._valueClasses[i] + '>.');
-        }
-        // Broadcast to listeners.
-        var slotsToProcess = this.slots;
-        if (slotsToProcess.nonEmpty) {
-            while (slotsToProcess.nonEmpty) {
-                slotsToProcess.head.execute(valueObjects);
-                slotsToProcess = slotsToProcess.tail;
-            }
-        }
-    };
-    OnceSignal.prototype.registerListener = function (listener, once) {
-        if (once === void 0) { once = false; }
-        if (this.registrationPossible(listener, once)) {
-            var newSlot = new Slot_1.Slot(listener, this, once);
-            this.slots = this.slots.prepend(newSlot);
-            return newSlot;
-        }
-        return this.slots.find(listener);
-    };
-    OnceSignal.prototype.registrationPossible = function (listener, once) {
-        if (!this.slots.nonEmpty)
-            return true;
-        var existingSlot = this.slots.find(listener);
-        if (!existingSlot)
-            return true;
-        if (existingSlot.once != once) {
-            // If the listener was previously added, definitely don't add it again.
-            // But throw an exception if their once values differ.
-            throw new Error('You cannot addOnce() then add() the same listener without removing the relationship first.');
-        }
-        return false; // Listener was already registered.
-    };
-    return OnceSignal;
-}());
-exports.OnceSignal = OnceSignal;
-
-},{"./Slot":32,"./SlotList":33}],29:[function(require,module,exports){
-"use strict";
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = Object.setPrototypeOf ||
-        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-Object.defineProperty(exports, "__esModule", { value: true });
-var Signal_1 = require("./Signal");
-var Slot_1 = require("./Slot");
-var PrioritySignal = (function (_super) {
-    __extends(PrioritySignal, _super);
-    function PrioritySignal() {
-        var valueClasses = [];
-        for (var _i = 0; _i < arguments.length; _i++) {
-            valueClasses[_i] = arguments[_i];
-        }
-        var _this = this;
-        // Cannot use super.apply(null, valueClasses), so allow the subclass to call super(valueClasses).
-        valueClasses = (valueClasses.length == 1 && valueClasses[0] instanceof Array) ? valueClasses[0] : valueClasses;
-        _this = _super.call(this, valueClasses) || this;
-        return _this;
-    }
-    /**
-     * @inheritDoc
-     * @throws flash.errors.IllegalOperationError <code>IllegalOperationError</code>: You cannot addOnce() then add() the same listener without removing the relationship first.
-     * @throws ArgumentError <code>ArgumentError</code>: Given listener is <code>null</code>.
-     */
-    PrioritySignal.prototype.addWithPriority = function (listener, priority) {
-        if (priority === void 0) { priority = 0; }
-        return this.registerListenerWithPriority(listener, false, priority);
-    };
-    /**
-     * @inheritDoc
-     * @throws flash.errors.IllegalOperationError <code>IllegalOperationError</code>: You cannot addOnce() then add() the same listener without removing the relationship first.
-     * @throws ArgumentError <code>ArgumentError</code>: Given listener is <code>null</code>.
-     */
-    PrioritySignal.prototype.addOnceWithPriority = function (listener, priority) {
-        if (priority === void 0) { priority = 0; }
-        return this.registerListenerWithPriority(listener, true, priority);
-    };
-    /*override*/
-    PrioritySignal.prototype.registerListener = function (listener, once) {
-        if (once === void 0) { once = false; }
-        return this.registerListenerWithPriority(listener, once);
-    };
-    PrioritySignal.prototype.registerListenerWithPriority = function (listener, once, priority) {
-        if (once === void 0) { once = false; }
-        if (priority === void 0) { priority = 0; }
-        if (this.registrationPossible(listener, once)) {
-            var slot = new Slot_1.Slot(listener, this, once, priority);
-            this.slots = this.slots.insertWithPriority(slot);
-            return slot;
-        }
-        return this.slots.find(listener);
-    };
-    return PrioritySignal;
-}(Signal_1.Signal));
-exports.PrioritySignal = PrioritySignal;
-
-},{"./Signal":31,"./Slot":32}],30:[function(require,module,exports){
-"use strict";
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = Object.setPrototypeOf ||
-        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-Object.defineProperty(exports, "__esModule", { value: true });
-var OnceSignal_1 = require("./OnceSignal");
-var Promise = (function (_super) {
-    __extends(Promise, _super);
-    function Promise() {
-        return _super !== null && _super.apply(this, arguments) || this;
-    }
-    /** @inheritDoc */
-    /*override*/
-    Promise.prototype.addOnce = function (listener) {
-        var slot = _super.prototype.addOnce.call(this, listener);
-        if (this.isDispatched) {
-            slot.execute(this.valueObjects);
-            slot.remove();
-        }
-        return slot;
-    };
-    /**
-     * @inheritDoc
-     * @throws flash.errors.IllegalOperationError <code>IllegalOperationError</code>: You cannot dispatch() a Promise more than once
-     */
-    /*override*/
-    Promise.prototype.dispatch = function () {
-        var valueObjects = [];
-        for (var _i = 0; _i < arguments.length; _i++) {
-            valueObjects[_i] = arguments[_i];
-        }
-        if (this.isDispatched) {
-            throw new Error("You cannot dispatch() a Promise more than once");
-        }
-        else {
-            this.isDispatched = true;
-            this.valueObjects = valueObjects;
-            _super.prototype.dispatch.apply(this, valueObjects);
-        }
-    };
-    return Promise;
-}(OnceSignal_1.OnceSignal));
-exports.Promise = Promise;
-
-},{"./OnceSignal":28}],31:[function(require,module,exports){
-"use strict";
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = Object.setPrototypeOf ||
-        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-Object.defineProperty(exports, "__esModule", { value: true });
-var OnceSignal_1 = require("./OnceSignal");
-/**
- * Allows the valueClasses to be set in MXML, e.g.
- * <signals:Signal id="nameChanged">{[String, uint]}</signals:Signal>
- */
-/*[DefaultProperty("valueClasses")]*/
-/**
- * Signal dispatches events to multiple listeners.
- * It is inspired by C# events and delegates, and by
- * <a target="_top" href="http://en.wikipedia.org/wiki/Signals_and_slots">signals and slots</a>
- * in Qt.
- * A Signal adds event dispatching functionality through composition and interfaces,
- * rather than inheriting from a dispatcher.
- * <br/><br/>
- * Project home: <a target="_top" href="http://github.com/robertpenner/as3-signals/">http://github.com/robertpenner/as3-signals/</a>
- */
-var Signal = (function (_super) {
-    __extends(Signal, _super);
-    /**
-     * Creates a Signal instance to dispatch value objects.
-     * @param    valueClasses Any number of class references that enable type checks in dispatch().
-     * For example, new Signal(String, uint)
-     * would allow: signal.dispatch("the Answer", 42)
-     * but not: signal.dispatch(true, 42.5)
-     * nor: signal.dispatch()
-     *
-     * NOTE: In AS3, subclasses cannot call super.apply(null, valueClasses),
-     * but this constructor has logic to support super(valueClasses).
-     */
-    function Signal() {
-        var valueClasses = [];
-        for (var _i = 0; _i < arguments.length; _i++) {
-            valueClasses[_i] = arguments[_i];
-        }
-        var _this = this;
-        // Cannot use super.apply(null, valueClasses), so allow the subclass to call super(valueClasses).
-        valueClasses = (valueClasses.length == 1 && valueClasses[0] instanceof Array) ? valueClasses[0] : valueClasses;
-        _this = _super.call(this, valueClasses) || this;
-        return _this;
-    }
-    /**
-     * @inheritDoc
-     * @throws flash.errors.IllegalOperationError <code>IllegalOperationError</code>: You cannot addOnce() then add() the same listener without removing the relationship first.
-     * @throws ArgumentError <code>ArgumentError</code>: Given listener is <code>null</code>.
-     */
-    Signal.prototype.add = function (listener) {
-        return this.registerListener(listener);
-    };
-    return Signal;
-}(OnceSignal_1.OnceSignal));
-exports.Signal = Signal;
-
-},{"./OnceSignal":28}],32:[function(require,module,exports){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-/**
- * The Slot class represents a signal slot.
- *
- * @author Robert Penner
- * @author Joa Ebert
- */
-var Slot = (function () {
-    /**
-     * Creates and returns a new Slot object.
-     *
-     * @param listener The listener associated with the slot.
-     * @param signal The signal associated with the slot.
-     * @param once Whether or not the listener should be executed only once.
-     * @param priority The priority of the slot.
-     *
-     * @throws ArgumentError <code>ArgumentError</code>: Given listener is <code>null</code>.
-     * @throws Error <code>Error</code>: Internal signal reference has not been set yet.
-     */
-    function Slot(listener, signal, once, priority) {
-        if (once === void 0) { once = false; }
-        if (priority === void 0) { priority = 0; }
-        this._enabled = true;
-        this._once = false;
-        this._priority = 0;
-        this._listener = listener;
-        this._once = once;
-        this._signal = signal;
-        this._priority = priority;
-        this.verifyListener(listener);
-    }
-    /**
-     * @inheritDoc
-     */
-    Slot.prototype.execute0 = function () {
-        if (!this._enabled)
-            return;
-        if (this._once)
-            this.remove();
-        if (this._params && this._params.length) {
-            this._listener.apply(null, this._params);
-            return;
-        }
-        this._listener();
-    };
-    /**
-     * @inheritDoc
-     */
-    Slot.prototype.execute1 = function (value) {
-        if (!this._enabled)
-            return;
-        if (this._once)
-            this.remove();
-        if (this._params && this._params.length) {
-            this._listener.apply(null, [value].concat(this._params));
-            return;
-        }
-        this._listener(value);
-    };
-    /**
-     * @inheritDoc
-     */
-    Slot.prototype.execute = function (valueObjects) {
-        if (!this._enabled)
-            return;
-        if (this._once)
-            this.remove();
-        // If we have parameters, add them to the valueObject
-        // Note: This could be expensive if we're after the fastest dispatch possible.
-        if (this._params && this._params.length) {
-            valueObjects = valueObjects.concat(this._params);
-        }
-        // NOTE: simple ifs are faster than switch: http://jacksondunstan.com/articles/1007
-        var numValueObjects = valueObjects.length;
-        if (numValueObjects == 0) {
-            this._listener();
-        }
-        else if (numValueObjects == 1) {
-            this._listener(valueObjects[0]);
-        }
-        else if (numValueObjects == 2) {
-            this._listener(valueObjects[0], valueObjects[1]);
-        }
-        else if (numValueObjects == 3) {
-            this._listener(valueObjects[0], valueObjects[1], valueObjects[2]);
-        }
-        else {
-            this._listener.apply(null, valueObjects);
-        }
-    };
-    Object.defineProperty(Slot.prototype, "listener", {
-        /**
-         * @inheritDoc
-         * @throws ArgumentError <code>ArgumentError</code>: Given listener is <code>null</code>. Did you want to set enabled to false instead?
-         * @throws Error <code>Error</code>: Internal signal reference has not been set yet.
-         */
-        get: function () {
-            return this._listener;
-        },
-        set: function (value) {
-            if (null == value)
-                throw new Error('Given listener is null.\nDid you want to set enabled to false instead?');
-            this.verifyListener(value);
-            this._listener = value;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(Slot.prototype, "once", {
-        /**
-         * @inheritDoc
-         */
-        get: function () {
-            return this._once;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(Slot.prototype, "priority", {
-        /**
-         * @inheritDoc
-         */
-        get: function () {
-            return this._priority;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    /**
-     * Creates and returns the string representation of the current object.
-     *
-     * @return The string representation of the current object.
-     */
-    Slot.prototype.toString = function () {
-        return "[Slot listener: " + this._listener + ", once: " + this._once
-            + ", priority: " + this._priority + ", enabled: " + this._enabled + "]";
-    };
-    Object.defineProperty(Slot.prototype, "enabled", {
-        /**
-         * @inheritDoc
-         */
-        get: function () {
-            return this._enabled;
-        },
-        set: function (value) {
-            this._enabled = value;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(Slot.prototype, "params", {
-        /**
-         * @inheritDoc
-         */
-        get: function () {
-            return this._params;
-        },
-        set: function (value) {
-            this._params = value;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    /**
-     * @inheritDoc
-     */
-    Slot.prototype.remove = function () {
-        this._signal.remove(this._listener);
-    };
-    Slot.prototype.verifyListener = function (listener) {
-        if (null == listener) {
-            throw new Error('Given listener is null.');
-        }
-        if (null == this._signal) {
-            throw new Error('Internal signal reference has not been set yet.');
-        }
-    };
-    return Slot;
-}());
-exports.Slot = Slot;
-
-},{}],33:[function(require,module,exports){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-/**
- * The SlotList class represents an immutable list of Slot objects.
- *
- * @author Joa Ebert
- * @author Robert Penner
- */
-var SlotList = (function () {
-    /**
-     * Creates and returns a new SlotList object.
-     *
-     * <p>A user never has to create a SlotList manually.
-     * Use the <code>NIL</code> element to represent an empty list.
-     * <code>NIL.prepend(value)</code> would create a list containing <code>value</code></p>.
-     *
-     * @param head The first slot in the list.
-     * @param tail A list containing all slots except head.
-     *
-     * @throws ArgumentError <code>ArgumentError</code>: Parameters head and tail are null. Use the NIL element instead.
-     * @throws ArgumentError <code>ArgumentError</code>: Parameter head cannot be null.
-     */
-    function SlotList(head, tail) {
-        if (tail === void 0) { tail = null; }
-        this.nonEmpty = false;
-        if (!head && !tail) {
-            if (SlotList.NIL)
-                throw new Error('Parameters head and tail are null. Use the NIL element instead.');
-            //this is the NIL element as per definition
-            this.nonEmpty = false;
-        }
-        else if (!head) {
-            throw new Error('Parameter head cannot be null.');
-        }
-        else {
-            this.head = head;
-            this.tail = tail || SlotList.NIL;
-            this.nonEmpty = true;
-        }
-    }
-    Object.defineProperty(SlotList.prototype, "length", {
-        /**
-         * The number of slots in the list.
-         */
-        get: function () {
-            if (!this.nonEmpty)
-                return 0;
-            if (this.tail == SlotList.NIL)
-                return 1;
-            // We could cache the length, but it would make methods like filterNot unnecessarily complicated.
-            // Instead we assume that O(n) is okay since the length property is used in rare cases.
-            // We could also cache the length lazy, but that is a waste of another 8b per list node (at least).
-            var result = 0;
-            var p = this;
-            while (p.nonEmpty) {
-                ++result;
-                p = p.tail;
-            }
-            return result;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    /**
-     * Prepends a slot to this list.
-     * @param    slot The item to be prepended.
-     * @return    A list consisting of slot followed by all elements of this list.
-     *
-     * @throws ArgumentError <code>ArgumentError</code>: Parameter head cannot be null.
-     */
-    SlotList.prototype.prepend = function (slot) {
-        return new SlotList(slot, this);
-    };
-    /**
-     * Appends a slot to this list.
-     * Note: appending is O(n). Where possible, prepend which is O(1).
-     * In some cases, many list items must be cloned to
-     * avoid changing existing lists.
-     * @param    slot The item to be appended.
-     * @return    A list consisting of all elements of this list followed by slot.
-     */
-    SlotList.prototype.append = function (slot) {
-        if (!slot)
-            return this;
-        if (!this.nonEmpty)
-            return new SlotList(slot);
-        // Special case: just one slot currently in the list.
-        if (this.tail == SlotList.NIL)
-            return new SlotList(slot).prepend(this.head);
-        // The list already has two or more slots.
-        // We have to build a new list with cloned items because they are immutable.
-        var wholeClone = new SlotList(this.head);
-        var subClone = wholeClone;
-        var current = this.tail;
-        while (current.nonEmpty) {
-            subClone = subClone.tail = new SlotList(current.head);
-            current = current.tail;
-        }
-        // Append the new slot last.
-        subClone.tail = new SlotList(slot);
-        return wholeClone;
-    };
-    /**
-     * Insert a slot into the list in a position according to its priority.
-     * The higher the priority, the closer the item will be inserted to the list head.
-     * @params slot The item to be inserted.
-     *
-     * @throws ArgumentError <code>ArgumentError</code>: Parameters head and tail are null. Use the NIL element instead.
-     * @throws ArgumentError <code>ArgumentError</code>: Parameter head cannot be null.
-     */
-    SlotList.prototype.insertWithPriority = function (slot) {
-        if (!this.nonEmpty)
-            return new SlotList(slot);
-        var priority = slot.priority;
-        // Special case: new slot has the highest priority.
-        if (priority > this.head.priority)
-            return this.prepend(slot);
-        var wholeClone = new SlotList(this.head);
-        var subClone = wholeClone;
-        var current = this.tail;
-        // Find a slot with lower priority and go in front of it.
-        while (current.nonEmpty) {
-            if (priority > current.head.priority) {
-                subClone.tail = current.prepend(slot);
-                return wholeClone;
-            }
-            subClone = subClone.tail = new SlotList(current.head);
-            current = current.tail;
-        }
-        // Slot has lowest priority.
-        subClone.tail = new SlotList(slot);
-        return wholeClone;
-    };
-    /**
-     * Returns the slots in this list that do not contain the supplied listener.
-     * Note: assumes the listener is not repeated within the list.
-     * @param    listener The function to remove.
-     * @return A list consisting of all elements of this list that do not have listener.
-     */
-    SlotList.prototype.filterNot = function (listener) {
-        if (!this.nonEmpty || listener == null)
-            return this;
-        if (listener == this.head.listener)
-            return this.tail;
-        // The first item wasn't a match so the filtered list will contain it.
-        var wholeClone = new SlotList(this.head);
-        var subClone = wholeClone;
-        var current = this.tail;
-        while (current.nonEmpty) {
-            if (current.head.listener == listener) {
-                // Splice out the current head.
-                subClone.tail = current.tail;
-                return wholeClone;
-            }
-            subClone = subClone.tail = new SlotList(current.head);
-            current = current.tail;
-        }
-        // The listener was not found so this list is unchanged.
-        return this;
-    };
-    /**
-     * Determines whether the supplied listener Function is contained within this list
-     */
-    SlotList.prototype.contains = function (listener) {
-        if (!this.nonEmpty)
-            return false;
-        var p = this;
-        while (p.nonEmpty) {
-            if (p.head.listener == listener)
-                return true;
-            p = p.tail;
-        }
-        return false;
-    };
-    /**
-     * Retrieves the ISlot associated with a supplied listener within the SlotList.
-     * @param   listener The Function being searched for
-     * @return  The ISlot in this list associated with the listener parameter through the ISlot.listener property.
-     *          Returns null if no such ISlot instance exists or the list is empty.
-     */
-    SlotList.prototype.find = function (listener) {
-        if (!this.nonEmpty)
-            return null;
-        var p = this;
-        while (p.nonEmpty) {
-            if (p.head.listener == listener)
-                return p.head;
-            p = p.tail;
-        }
-        return null;
-    };
-    SlotList.prototype.toString = function () {
-        var buffer = '';
-        var p = this;
-        while (p.nonEmpty) {
-            buffer += p.head + " -> ";
-            p = p.tail;
-        }
-        buffer += "NIL";
-        return "[List " + buffer + "]";
-    };
-    /**
-     * Represents an empty list. Used as the list terminator.
-     */
-    SlotList.NIL = new SlotList(null, null);
-    return SlotList;
-}());
-exports.SlotList = SlotList;
-
-},{}],34:[function(require,module,exports){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-/**
- *
- * @see org.osflash.signals.events.IEvent
- * Documentation for the event interface being maintained in IEvent to avoid duplication for now.
- */
-var GenericEvent = (function () {
-    function GenericEvent(bubbles) {
-        if (bubbles === void 0) { bubbles = false; }
-        this._bubbles = bubbles;
-    }
-    Object.defineProperty(GenericEvent.prototype, "signal", {
-        /** @inheritDoc */
-        get: function () {
-            return this._signal;
-        },
-        set: function (value) {
-            this._signal = value;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(GenericEvent.prototype, "target", {
-        /** @inheritDoc */
-        get: function () {
-            return this._target;
-        },
-        set: function (value) {
-            this._target = value;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(GenericEvent.prototype, "currentTarget", {
-        /** @inheritDoc */
-        get: function () {
-            return this._currentTarget;
-        },
-        set: function (value) {
-            this._currentTarget = value;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    Object.defineProperty(GenericEvent.prototype, "bubbles", {
-        /** @inheritDoc */
-        get: function () {
-            return this._bubbles;
-        },
-        set: function (value) {
-            this._bubbles = value;
-        },
-        enumerable: true,
-        configurable: true
-    });
-    /** @inheritDoc */
-    GenericEvent.prototype.clone = function () {
-        return new GenericEvent(this._bubbles);
-    };
-    return GenericEvent;
-}());
-exports.GenericEvent = GenericEvent;
-
-},{}]},{},[13])(13)
+},{}]},{},[19])(19)
 });
