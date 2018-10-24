@@ -22,11 +22,11 @@
     "pixi-engine": "^0.1.5",
     "pixi.js": "^4.7.3",
     "serve-index": "^1.9.1",
-    "superagent": "^3.8.3"
-  },
-  "devDependencies": {
-    "browserify": "^16.2.0",
+    "superagent": "^3.8.3",
     "ts-node": "^6.2.0",
     "typescript": "^2.9.2"
+  },
+  "devDependencies": {
+    "browserify": "^16.2.0"
   }
 }
